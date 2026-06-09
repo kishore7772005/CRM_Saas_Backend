@@ -21,11 +21,19 @@ const REDIRECT_URI = isProduction
   ? process.env.GMAIL_LIVE_REDIRECT_URI
   : process.env.GMAIL_REDIRECT_URI;
 
-if (!CLIENT_ID || !CLIENT_SECRET) {
-  throw new Error("Gmail OAuth credentials not configured");
+const _gmailConfigured = !!(CLIENT_ID && CLIENT_SECRET);
+
+if (!_gmailConfigured) {
+  console.warn("⚠️  GMAIL_CLIENT_ID or GMAIL_CLIENT_SECRET missing in .env — Gmail features disabled");
 }
 
-export const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+const requireGmailConfig = () => {
+  if (!_gmailConfigured) throw new Error("Gmail OAuth is not configured. Set GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET in .env");
+};
+
+export const oauth2Client = _gmailConfigured
+  ? new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI)
+  : null;
 
 // ─── PER-USER CLIENT CACHE ────────────────────────────────────────────────────
 const clientCache = new Map(); // email -> { client, auth, expiresAt }
@@ -42,6 +50,7 @@ export const upload = multer({
 
 // ─── INIT CLIENT ──────────────────────────────────────────────────────────────
 export async function initializeGmailClient(email) {
+  requireGmailConfig();
   if (!email) throw new Error("email is required for Gmail client initialization");
 
   const normalEmail = email.toLowerCase().trim();
@@ -100,6 +109,7 @@ function invalidateClientCache(email) {
 
 // ─── AUTH URL ─────────────────────────────────────────────────────────────────
 export function generateAuthUrl(redirectUri) {
+  requireGmailConfig();
   const scopes = [
     "https://mail.google.com/",
     "https://www.googleapis.com/auth/gmail.modify",
@@ -112,6 +122,7 @@ export function generateAuthUrl(redirectUri) {
 
 // ─── SAVE TOKENS ─────────────────────────────────────────────────────────────
 export async function saveTokens(tokens) {
+  requireGmailConfig();
   const tempClient = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
   tempClient.setCredentials(tokens);
 
@@ -150,6 +161,7 @@ export async function saveTokens(tokens) {
 
 // ─── EXCHANGE CODE ────────────────────────────────────────────────────────────
 export async function exchangeCodeForTokens(code, redirectUri) {
+  requireGmailConfig();
   const tempClient = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, redirectUri);
   const { tokens } = await tempClient.getToken(code);
   const result = await saveTokens(tokens);

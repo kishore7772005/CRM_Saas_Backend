@@ -6,48 +6,35 @@ dotenv.config();
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken  = process.env.TWILIO_AUTH_TOKEN;
 
+let client = null;
+let FROM    = null;
+let _twilioReady = false;
+
 if (!accountSid || !authToken) {
-  console.error(" TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN missing in .env");
-  process.exit(1);
-}
+  console.warn("⚠️  TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN missing in .env — WhatsApp features disabled");
+} else {
+  try {
+    client = twilio(accountSid, authToken);
 
-const client = twilio(accountSid, authToken);
-
-// ─── Validate FROM number at startup ────────────────────────────────────────
-const validateFromNumber = () => {
-  const rawFrom = process.env.TWILIO_WHATSAPP_FROM;
-  if (!rawFrom) {
-    throw new Error(
-      "TWILIO_WHATSAPP_FROM is not defined in .env.\n" +
-      "Set it to your registered WhatsApp Sender:\n" +
-      "Twilio Console → Messaging → Senders → WhatsApp Senders\n" +
-      "Your registered sender is: whatsapp:+15558854931"
-    );
+    const rawFrom = process.env.TWILIO_WHATSAPP_FROM;
+    if (!rawFrom) {
+      console.warn("⚠️  TWILIO_WHATSAPP_FROM missing in .env — WhatsApp features disabled");
+    } else {
+      let from = rawFrom.trim();
+      if (from.startsWith("whatsapp:")) from = from.slice("whatsapp:".length);
+      if (!from.startsWith("+")) from = "+" + from;
+      FROM = `whatsapp:${from}`;
+      _twilioReady = true;
+      console.log(`Twilio WhatsApp FROM: ${FROM}`);
+    }
+  } catch (err) {
+    console.warn("⚠️  Twilio init failed:", err.message, "— WhatsApp features disabled");
   }
-
-  let from = rawFrom.trim();
-  if (from.startsWith("whatsapp:")) from = from.slice("whatsapp:".length);
-  if (!from.startsWith("+")) from = "+" + from;
-  const formattedFrom = `whatsapp:${from}`;
-
-  console.log(` Twilio WhatsApp FROM: ${formattedFrom}`);
-  console.log(
-    "    Ensure this number is listed under:\n" +
-    "    Twilio Console → Messaging → Senders → WhatsApp Senders\n" +
-    "    and Sender Status = Online\n" +
-    "    NOTE: +13049443661 is a voice/SMS number, NOT a WhatsApp sender."
-  );
-
-  return formattedFrom;
-};
-
-let FROM;
-try {
-  FROM = validateFromNumber();
-} catch (err) {
-  console.error("❌", err.message);
-  process.exit(1);
 }
+
+const requireTwilio = () => {
+  if (!_twilioReady) throw new Error("WhatsApp is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_WHATSAPP_FROM in .env");
+};
 
 // ─── Number normaliser ───────────────────────────────────────────────────────
 // Called ONCE in the controller. Service functions receive an already-
@@ -75,8 +62,8 @@ export const displayNumber = (num = "") => num.replace("whatsapp:", "");
 
 // ─── Internal pre-flight ──────────────────────────────────────────────────────
 const validate = (to) => {
-  if (!FROM) throw new Error("WhatsApp sender (FROM) not configured. Check TWILIO_WHATSAPP_FROM in .env");
-  if (!to)   throw new Error("Recipient phone number is required");
+  requireTwilio();
+  if (!to) throw new Error("Recipient phone number is required");
 };
 
 // ─── Send plain text ──────────────────────────────────────────────────────────
@@ -145,8 +132,9 @@ export const sendMediaMessage = async (to, body, mediaUrl) => {
 
 // ─── Fetch status ─────────────────────────────────────────────────────────────
 export const fetchMessageStatus = async (messageSid) => {
+  requireTwilio();
   const msg = await client.messages(messageSid).fetch();
   return msg.status;
 };
 
-export default client;
+export { client as default };
