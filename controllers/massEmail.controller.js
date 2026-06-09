@@ -1,16 +1,25 @@
-import MassEmail from "../models/massEmail.model.js";
-import Lead from "../models/leads.model.js";
-import Deal from "../models/deals.model.js";
+import { getTenantModels } from "../models/tenant/index.js";
+
+// Legacy fallbacks
+import MassEmailLegacy from "../models/massEmail.model.js";
+import LeadLegacy      from "../models/leads.model.js";
+import DealLegacy      from "../models/deals.model.js";
+
 import fs from "fs";
 import sendEmail from "../utils/sendEmail.js";
 import { addEmailToQueue } from "../utils/emailQueue.js";
 
-export default{
+const getModels = (req) => {
+  if (req.tenantDB) return getTenantModels(req.tenantDB);
+  return { MassEmail: MassEmailLegacy, Lead: LeadLegacy, Deal: DealLegacy };
+};
+
+export default {
 
 // Get all contacts (leads + deals) for mass email - no pagination
 getAllEmailContacts: async (req, res) => {
   try {
-    
+    const { Lead, Deal } = getModels(req);
 
     // Fetch all leads with email
     const leads = await Lead.find({ email: { $exists: true, $ne: "" } })
@@ -47,7 +56,6 @@ getAllEmailContacts: async (req, res) => {
       });
     }
 
-
     // Format deals
     for (const deal of deals) {
       const email = deal.email || deal.leadEmail || deal.leadId?.email || "";
@@ -76,6 +84,7 @@ getAllEmailContacts: async (req, res) => {
 //send email to multiple clients
 sendBulkEmail : async (req, res) => {
   try {
+    const { MassEmail } = getModels(req);
     let { recipients, templateTitle, subject, content, scheduledFor } = req.body;
     const logoUrl = "https://res.cloudinary.com/djpljugqo/image/upload/v1771404424/TZI_Logo-04_-_Copy-removebg-preview_o6ocur.png";
 
@@ -169,6 +178,7 @@ sendBulkEmail : async (req, res) => {
 //// Get paginated history of sent emails with role-based access
 getEmailHistory : async (req, res) => {
   try {
+    const { MassEmail } = getModels(req);
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 5;
     const skip = (page - 1) * limit;
@@ -210,6 +220,7 @@ getEmailHistory : async (req, res) => {
 // Get all scheduled emails with role-based access
 getScheduledEmails : async (req, res) => {
   try {
+    const { MassEmail } = getModels(req);
     let filter = { status: "scheduled" };
 
     // If NOT Admin → show only their scheduled emails
@@ -239,6 +250,7 @@ getScheduledEmails : async (req, res) => {
 //cancel the scheduled email
 cancelScheduledEmail : async (req, res) => {
   try {
+    const { MassEmail } = getModels(req);
     const emailId = req.params.id;
 
     const email = await MassEmail.findById(emailId);
@@ -269,6 +281,7 @@ cancelScheduledEmail : async (req, res) => {
 // Get single email by ID
 getSingleEmail : async (req, res) => {
   try {
+    const { MassEmail } = getModels(req);
     const email = await MassEmail.findById(req.params.id);
 
     if (!email) {
@@ -288,6 +301,7 @@ getSingleEmail : async (req, res) => {
 //update the already scheduled email
 updateScheduledEmail : async (req, res) => {
   try {
+    const { MassEmail } = getModels(req);
     const { subject, content, recipients, scheduledFor, templateTitle } = req.body;
     const { newAttachments, existingAttachments, removedAttachments } = req.body;
     
@@ -381,6 +395,7 @@ updateScheduledEmail : async (req, res) => {
 //delete Email
 deleteEmail : async (req, res) => {
   try {
+    const { MassEmail } = getModels(req);
     const email = await MassEmail.findById(req.params.id);
 
     if (!email) {
@@ -408,6 +423,7 @@ deleteEmail : async (req, res) => {
 //delete email in history
 deleteEmailHistory: async (req, res) => {
   try {
+    const { MassEmail } = getModels(req);
     const email = await MassEmail.findById(req.params.id);
 
     if (!email) {
@@ -455,9 +471,10 @@ deleteEmailHistory: async (req, res) => {
     });
   }
 },
-// Add bulk delete function for the hsitory page
+// Add bulk delete function for the history page
 bulkDeleteEmailHistory: async (req, res) => {
   try {
+    const { MassEmail } = getModels(req);
     const { emailIds, selectAll, filters } = req.body;
     
     // Build the base filter based on user role

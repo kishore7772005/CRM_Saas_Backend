@@ -1,11 +1,17 @@
-import LostDealReason from "../models/lostDealReasonModel.js";
-import Deal from "../models/deals.model.js";
+import { getTenantModels } from "../models/tenant/index.js";
+import LostDealReasonLegacy from "../models/lostDealReasonModel.js";
+import DealLegacy from "../models/deals.model.js";
 
+const getModels = (req) =>
+  req.tenantDB
+    ? getTenantModels(req.tenantDB)
+    : { Deal: DealLegacy, LostDealReason: LostDealReasonLegacy };
 
 export default{
 // save the reason for the deal lost
 saveLostDealReason : async (req, res) => {
   try {
+    const { Deal, LostDealReason } = getModels(req);
     const { dealId, reason, notes } = req.body;
     const userId = req.user?._id || null;
 
@@ -90,6 +96,7 @@ await deal.save();
 // get the lost deal reasons
 getLostDealReasons :async (req, res) => {
   try {
+    const { LostDealReason } = getModels(req);
     const lostReasons = await LostDealReason.find()
       .populate("dealId", "dealName stage value")
       .populate("createdBy", "firstName lastName email")

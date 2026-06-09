@@ -1,4 +1,10 @@
-import Deal from "../models/deals.model.js";
+import { getTenantModels } from "../models/tenant/index.js";
+import DealLegacy from "../models/deals.model.js";
+
+const getModels = (req) =>
+  req.tenantDB
+    ? getTenantModels(req.tenantDB)
+    : { Deal: DealLegacy };
 
 // ---------------- Helper Functions ----------------
 // Parse currency string to numeric value
@@ -196,6 +202,7 @@ export default {
   //get the lost deal and analyse it
   getLostDealAnalytics: async (req, res) => {
     try {
+      const { Deal } = getModels(req);
       const { timeframe = "month", startDate, endDate, reason, assignedTo, industry } = req.query;
       const userId = req.user?._id;
       const userRole = req.user?.role?.name;
@@ -290,6 +297,7 @@ export default {
   //export the lost deal as a report
   exportLostDealReport: async (req, res) => {
     try {
+      const { Deal } = getModels(req);
       const { format = "csv", timeframe = "month" } = req.query;
       const now = new Date();
       let dateFilter = {};

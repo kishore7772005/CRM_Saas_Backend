@@ -30,6 +30,7 @@ const roleController = {
 
   getRoles: async (req, res) => {
     try {
+      const Role = getRole(req);
       const roles = await Role.find().sort({ createdAt: -1 });
 
       res.status(200).json({
