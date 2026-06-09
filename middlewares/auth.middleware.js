@@ -1,8 +1,13 @@
 import jwt from "jsonwebtoken";
-import User from "../models/user.model.js";
-import Lead from "../models/leads.model.js";
-import Deal from "../models/deals.model.js";
 import dotenv from "dotenv";
+
+import { getTenantDB } from "../config/tenantDB.js";
+import { getTenantModels } from "../models/tenant/index.js";
+
+// Legacy single-tenant imports — still used when req.tenantDB is absent
+import UserLegacy from "../models/user.model.js";
+import LeadLegacy from "../models/leads.model.js";
+import DealLegacy from "../models/deals.model.js";
 
 dotenv.config();
 
@@ -19,6 +24,16 @@ export const protect = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.SECRET_KEY);
+
+    // Resolve tenantDB from token payload if not already set by resolveTenant
+    if (!req.tenantDB && decoded.dbName) {
+      req.tenantDB = await getTenantDB(decoded.dbName);
+    }
+
+    const User = req.tenantDB
+      ? getTenantModels(req.tenantDB).User
+      : UserLegacy;
+
     req.user = await User.findById(decoded.id).populate("role");
 
     if (!req.user) {
@@ -50,12 +65,14 @@ export const adminCreateOnly = (req, res, next) => {
 export const adminOrAssigned = async (req, res, next) => {
   try {
     const roleName = req.user.role.name?.toLowerCase();
-    if (roleName === "admin") {
-      return next();
-    }
+    if (roleName === "admin") return next();
+
+    const Lead = req.tenantDB
+      ? getTenantModels(req.tenantDB).Lead
+      : LeadLegacy;
 
     const leadId = req.params.id;
-    const lead = await Lead.findById(leadId);
+    const lead   = await Lead.findById(leadId);
 
     if (!lead) {
       return res.status(404).json({ message: "Lead not found" });
@@ -76,12 +93,14 @@ export const adminOrAssigned = async (req, res, next) => {
 export const adminOrAssignedToDeal = async (req, res, next) => {
   try {
     const roleName = req.user.role.name?.toLowerCase();
-    if (roleName === "admin") {
-      return next();
-    }
+    if (roleName === "admin") return next();
+
+    const Deal = req.tenantDB
+      ? getTenantModels(req.tenantDB).Deal
+      : DealLegacy;
 
     const dealId = req.params.id;
-    const deal = await Deal.findById(dealId);
+    const deal   = await Deal.findById(dealId);
 
     if (!deal) {
       return res.status(404).json({ message: "Deal not found" });
@@ -101,16 +120,12 @@ export const adminOrAssignedToDeal = async (req, res, next) => {
 
 export const adminOrSales = (req, res, next) => {
   const roleName = req.user.role.name?.toLowerCase();
-  if (roleName === "admin" || roleName === "sales") {
-    return next();
-  }
+  if (roleName === "admin" || roleName === "sales") return next();
   return res.status(403).json({ message: "Access denied: Admins or Sales only" });
 };
 
 export const adminOrSelf = (req, res, next) => {
   const roleName = req.user.role.name?.toLowerCase();
-  if (roleName === "admin" || req.user._id.toString() === req.params.id) {
-    return next();
-  }
+  if (roleName === "admin" || req.user._id.toString() === req.params.id) return next();
   return res.status(403).json({ message: "Access denied" });
 };

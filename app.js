@@ -10,6 +10,11 @@ import helmet from "helmet";
 import mongoSanitize from "express-mongo-sanitize";
 import rateLimit from "express-rate-limit";
 
+// Multi-tenant SaaS imports
+import superAdminRoutes from "./routes/superAdmin.js";
+import tenantApiRouter  from "./routes/tenantRouter.js";
+import { resolveTenant } from "./middlewares/resolveTenant.js";
+
 // Routes
 import { startFollowUpCron } from "./controllers/followups.cron.js";
 import gmailRoutes from "./routes/gmailRoutes.js";
@@ -122,7 +127,13 @@ app.use(
 app.use(express.static(path.join(__dirname, "public")));
 
 // ─────────────────────────────────────────────
-// API Routes
+// Multi-tenant SaaS Routes  (mounted BEFORE existing /api routes)
+// ─────────────────────────────────────────────
+app.use("/superadmin", superAdminRoutes);
+app.use("/:tenantSlug/api", resolveTenant, tenantApiRouter);
+
+// ─────────────────────────────────────────────
+// Legacy / existing API Routes (single-tenant, kept for backward compat)
 // ─────────────────────────────────────────────
 app.use("/api", routes);
 app.use("/api/files", fileRoutes);

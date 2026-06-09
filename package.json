@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "nodemon app.js",
     "seed": "node seeder/admin.seeder.js",
-    "seed:templates": "node seeder/emailTemplatesSeeder.js"
+    "seed:templates": "node seeder/emailTemplatesSeeder.js",
+    "migrate": "node scripts/migrate-to-tenant.js",
+    "seed:superadmin": "node seeder/superAdmin.seeder.js"
   },
   "keywords": [],
   "author": "",

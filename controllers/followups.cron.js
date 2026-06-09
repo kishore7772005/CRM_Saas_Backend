@@ -1,113 +1,114 @@
-import cron         from "node-cron";
-import Lead         from "../models/leads.model.js";
-import User         from "../models/user.model.js";
-import Role         from "../models/role.model.js";
-import Notification from "../models/notification.model.js";
+import cron from "node-cron";
 import { sendNotification } from "../services/notificationService.js";
+import { getTenantDB } from "../config/tenantDB.js";
+import { getTenantModels } from "../models/tenant/index.js";
+import Tenant from "../models/master/Tenant.js";
 
-const COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
-// Get all admin user IDs for sending missed follow-up notifications
-const getAdminUserIds = async () => {
+// Legacy models (for /api/ non-tenant routes)
+import LeadLegacy         from "../models/leads.model.js";
+import UserLegacy         from "../models/user.model.js";
+import RoleLegacy         from "../models/role.model.js";
+import NotificationLegacy from "../models/notification.model.js";
+
+const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+const getAdminUserIds = async (User, Role) => {
   const adminRole = await Role.findOne({ name: "Admin" });
   if (!adminRole) return [];
   const admins = await User.find({ role: adminRole._id }, "_id");
   return admins.map((a) => a._id.toString());
 };
-// Check if a follow-up notification was already sent within cooldown period
-const notificationExists = async (userId, leadId) => {
+
+const notificationExists = async (userId, leadId, Notification) => {
   const cutoff = new Date(Date.now() - COOLDOWN_MS);
-  const existing = await Notification.findOne({
-    userId,
-    type:          "followup",
-    "meta.leadId": leadId,
-    createdAt:     { $gte: cutoff },
-  });
+  const existing = await Notification.findOne({ userId, type: "followup", "meta.leadId": leadId, createdAt: { $gte: cutoff } });
   return !!existing;
 };
 
+const runFollowUpForModels = async ({ Lead, User, Role, Notification }, tenantDB = null, label = "legacy") => {
+  const now          = new Date();
+  const bufferNow    = new Date(now.getTime() + 5 * 60 * 1000);
+  const cooldownCutoff = new Date(now.getTime() - COOLDOWN_MS);
+
+  console.log(`FollowUp Cron [${label}]:`, now.toISOString());
+
+  const dueLeads = await Lead.find({
+    followUpDate: { $lte: bufferNow },
+    status: { $in: ["Hot","Warm","Cold"] },
+    $or: [{ lastReminderAt: { $exists: false } }, { lastReminderAt: null }, { lastReminderAt: { $lt: cooldownCutoff } }],
+  }).populate("assignTo", "firstName lastName email _id");
+
+  if (!dueLeads.length) return;
+
+  const admins = await getAdminUserIds(User, Role);
+
+  for (const lead of dueLeads) {
+    const assignUserId = lead.assignTo?._id?.toString();
+    const leadId       = lead._id.toString();
+    const leadName     = lead.leadName || "Unnamed Lead";
+
+    if (assignUserId) {
+      const alreadySent = await notificationExists(assignUserId, leadId, Notification);
+      if (!alreadySent)
+        await sendNotification(assignUserId, `You missed a follow-up for Lead: ${leadName}`, "followup", { leadId }, {}, tenantDB);
+    }
+
+    for (const adminId of admins) {
+      const alreadySent = await notificationExists(adminId, leadId, Notification);
+      if (!alreadySent)
+        await sendNotification(adminId, `Salesman ${lead.assignTo?.firstName||"Unknown"} missed follow-up for Lead: ${leadName}`, "followup",
+          { leadId, salesman: lead.assignTo?.firstName||"Unknown", salesmanId: assignUserId }, {}, tenantDB);
+    }
+
+    await Lead.updateOne({ _id: lead._id }, { $set: { lastReminderAt: now } });
+    console.log(`[${label}] Stamped lastReminderAt for "${leadName}"`);
+  }
+};
+
 export function startFollowUpCron() {
-  //cron job-to check
   cron.schedule("* * * * *", async () => {
-    const now        = new Date();
-    const bufferNow  = new Date(now.getTime() + 5 * 60 * 1000);
-    const cooldownCutoff = new Date(now.getTime() - COOLDOWN_MS);
-
-    console.log(" FollowUp Cron:", now.toISOString());
-
     try {
-      const dueLeads = await Lead.find({
-        followUpDate: { $lte: bufferNow },
-        status:       { $in: ["Hot", "Warm", "Cold"] },
-        $or: [
-          { lastReminderAt: { $exists: false } },
-          { lastReminderAt: null },
-          { lastReminderAt: { $lt: cooldownCutoff } },
-        ],
-      }).populate("assignTo", "firstName lastName email _id");
+      // 1. Legacy connection
+      await runFollowUpForModels(
+        { Lead: LeadLegacy, User: UserLegacy, Role: RoleLegacy, Notification: NotificationLegacy },
+        null, "legacy"
+      );
 
-      console.log(` Due leads: ${dueLeads.length}`);
-      if (!dueLeads.length) return;
+      // 2. Per-tenant
+      let tenants = [];
+      try { tenants = await Tenant.find({ isActive: true }).lean(); }
+      catch (e) { console.warn("FollowUpCron: could not load tenants:", e.message); }
 
-      const admins = await getAdminUserIds();
-
-      for (const lead of dueLeads) {
-        const assignUserId = lead.assignTo?._id?.toString();
-        const leadId       = lead._id.toString();
-        const leadName     = lead.leadName || "Unnamed Lead";
-
-        // Notify salesman
-        if (assignUserId) {
-          const alreadySent = await notificationExists(assignUserId, leadId);
-          if (!alreadySent) {
-            await sendNotification(
-              assignUserId,
-              ` You missed a follow-up for Lead: ${leadName}`,
-              "followup",
-              { leadId }
-            );
-          }
-        }
-
-        // Notify admins
-        for (const adminId of admins) {
-          const alreadySent = await notificationExists(adminId, leadId);
-          if (!alreadySent) {
-            await sendNotification(
-              adminId,
-              `Salesman ${lead.assignTo?.firstName || "Unknown"} missed follow-up for Lead: ${leadName}`,
-              "followup",
-              { leadId, salesman: lead.assignTo?.firstName || "Unknown", salesmanId: assignUserId }
-            );
-          }
-        }
-
-        
-        // lead.save() triggers full Mongoose validation — if the lead was
-        // created before the 'destination' field was added (required: true),
-        // it fails with "destination: Path required" and crashes the cron.
-        // updateOne bypasses schema validation for fields we are NOT changing.
-        await Lead.updateOne(
-          { _id: lead._id },
-          { $set: { lastReminderAt: now } }
-        );
-
-        console.log(` Stamped lastReminderAt for "${leadName}"`);
+      for (const tenant of tenants) {
+        try {
+          const tenantDB = await getTenantDB(tenant.dbName);
+          const models   = getTenantModels(tenantDB);
+          await runFollowUpForModels(models, tenantDB, tenant.slug);
+        } catch (e) { console.error(`FollowUpCron error for tenant ${tenant.slug}:`, e.message); }
       }
-
     } catch (err) {
-      console.error(" FollowUp cron error:", err.message);
+      console.error("FollowUp cron error:", err.message);
     }
   });
 
   // Purge expired notifications every hour
   cron.schedule("0 * * * *", async () => {
     try {
-      const result = await Notification.deleteMany({
-        expiresAt: { $lte: new Date() },
-      });
-      console.log(" Expired notifications deleted:", result.deletedCount);
+      const result = await NotificationLegacy.deleteMany({ expiresAt: { $lte: new Date() } });
+      console.log("Expired notifications deleted (legacy):", result.deletedCount);
+
+      let tenants = [];
+      try { tenants = await Tenant.find({ isActive: true }).lean(); } catch (_) {}
+      for (const tenant of tenants) {
+        try {
+          const tenantDB = await getTenantDB(tenant.dbName);
+          const { Notification } = getTenantModels(tenantDB);
+          const r = await Notification.deleteMany({ expiresAt: { $lte: new Date() } });
+          if (r.deletedCount > 0) console.log(`Expired notifications deleted [${tenant.slug}]:`, r.deletedCount);
+        } catch (e) { console.error(`Notification cleanup error for tenant ${tenant.slug}:`, e.message); }
+      }
     } catch (err) {
-      console.error(" Notification cleanup error:", err.message);
+      console.error("Notification cleanup error:", err.message);
     }
   });
 }

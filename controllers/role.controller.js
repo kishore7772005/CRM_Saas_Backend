@@ -1,18 +1,18 @@
-import Role from "../models/role.model.js";
+import { getTenantModels } from "../models/tenant/index.js";
+import RoleLegacy from "../models/role.model.js";
+
+const getRole = (req) =>
+  req.tenantDB ? getTenantModels(req.tenantDB).Role : RoleLegacy;
 
 const roleController = {
-  //  Create a new role
   createRole: async (req, res) => {
     try {
+      const Role = getRole(req);
       const { name, description, permissions } = req.body;
 
-      // Prevent duplicate role names
       const existingRole = await Role.findOne({ name: name.trim() });
-      if (existingRole) {
-        return res.status(400).json({ message: "Role already exists" });
-      }
+      if (existingRole) return res.status(400).json({ message: "Role already exists" });
 
-      //  Normalize permissions: force true/false
       const normalizedPermissions = {};
       if (permissions) {
         Object.keys(permissions).forEach((key) => {
@@ -20,12 +20,7 @@ const roleController = {
         });
       }
 
-      const role = await Role.create({
-        name: name.trim(),
-        description,
-        permissions: normalizedPermissions,
-      });
-
+      const role = await Role.create({ name: name.trim(), description, permissions: normalizedPermissions });
       res.status(201).json(role);
     } catch (err) {
       console.error("Error creating role:", err);
@@ -33,7 +28,6 @@ const roleController = {
     }
   },
 
-  //  Get all roles with pagination
   getRoles: async (req, res) => {
     try {
       const roles = await Role.find().sort({ createdAt: -1 });
@@ -54,28 +48,20 @@ const roleController = {
     }
   },
 
-  //  Update a role by ID
   updateRole: async (req, res) => {
     try {
+      const Role = getRole(req);
       const { id } = req.params;
       const { name, description, permissions } = req.body;
 
       const role = await Role.findById(id);
-      if (!role) {
-        return res.status(404).json({ message: "Role not found" });
-      }
+      if (!role) return res.status(404).json({ message: "Role not found" });
 
-      // Update fields if provided
       if (name) role.name = name.trim();
       if (description) role.description = description;
-
-      //  Overwrite permissions correctly
-      if (permissions) {
-        role.permissions = { ...role.permissions.toObject(), ...permissions };
-      }
+      if (permissions) role.permissions = { ...role.permissions.toObject(), ...permissions };
 
       const updatedRole = await role.save();
-
       res.status(200).json(updatedRole);
     } catch (err) {
       console.error("Error updating role:", err);
@@ -83,17 +69,12 @@ const roleController = {
     }
   },
 
-  //  Delete a role by ID
   deleteRole: async (req, res) => {
     try {
+      const Role = getRole(req);
       const { id } = req.params;
-
       const deletedRole = await Role.findByIdAndDelete(id);
-
-      if (!deletedRole) {
-        return res.status(404).json({ message: "Role not found" });
-      }
-
+      if (!deletedRole) return res.status(404).json({ message: "Role not found" });
       res.status(200).json({ message: "Role deleted successfully" });
     } catch (err) {
       console.error("Error deleting role:", err);

@@ -1,47 +1,41 @@
-import EmailTemplate from "../models/emailTemplate.model.js";
+import { getTenantModels } from "../models/tenant/index.js";
+import EmailTemplateLegacy from "../models/emailTemplate.model.js";
 
-//  Get all templates (Admin + Assigned users)
-export default{
-  // Get all  templates
-   getTemplates : async (req, res) => {
-  try {
-    const templates = await EmailTemplate.find().sort({ createdAt: -1 });
+const getModel = (req) =>
+  req.tenantDB ? getTenantModels(req.tenantDB).EmailTemplate : EmailTemplateLegacy;
 
-    res.json({
-      success: true,
-      templates,
-    });
-  } catch (error) {
-    console.error("Fetch templates error:", error);
-    res.status(500).json({ message: "Failed to fetch templates" });
-  }
-},
-
-//  Create template (Admin only)
-createTemplate : async (req, res) => {
-  try {
-    const { title, subject, content } = req.body;
-
-    if (!title || !subject || !content) {
-      return res.status(400).json({
-        message: "All fields are required",
-      });
+export default {
+  getTemplates: async (req, res) => {
+    try {
+      const EmailTemplate = getModel(req);
+      const templates = await EmailTemplate.find().sort({ createdAt: -1 });
+      res.json({ success: true, templates });
+    } catch (error) {
+      console.error("Fetch templates error:", error);
+      res.status(500).json({ message: "Failed to fetch templates" });
     }
+  },
 
-    const template = await EmailTemplate.create({
-      title,
-      subject,
-      content,
-      createdBy: req.user._id,
-    });
+  createTemplate: async (req, res) => {
+    try {
+      const EmailTemplate = getModel(req);
+      const { title, subject, content } = req.body;
 
-    res.status(201).json({
-      success: true,
-      template,
-    });
-  } catch (error) {
-    console.error("Create template error:", error);
-    res.status(500).json({ message: "Failed to create template" });
-  }
-}
+      if (!title || !subject || !content) {
+        return res.status(400).json({ message: "All fields are required" });
+      }
+
+      const template = await EmailTemplate.create({
+        title,
+        subject,
+        content,
+        createdBy: req.user._id,
+      });
+
+      res.status(201).json({ success: true, template });
+    } catch (error) {
+      console.error("Create template error:", error);
+      res.status(500).json({ message: "Failed to create template" });
+    }
+  },
 };
