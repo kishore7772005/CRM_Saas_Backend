@@ -299,65 +299,59 @@ export default {
       const formattedNumber = new Intl.NumberFormat("en-IN").format(numericValue);
       const formattedValue  = `${formattedNumber} ${currency || "INR"}`;
 
-    const numericValue = Number(value || 0);
-    const formattedNumber = new Intl.NumberFormat("en-IN").format(numericValue);
-    const formattedValue = `${formattedNumber} ${currency || "INR"}`;
-
-    const deal = new Deal({
-      leadId: lead._id,
-      dealName: lead.leadName,
-      assignedTo: lead.assignTo?._id ?? null,
-      value: formattedValue,
-      currency: currency || "INR",
-      notes: notes || "",
-      stage: stage || "Qualification",
-      email: lead.email || "",
-      phoneNumber: lead.phoneNumber || "",
-      source: lead.source || "",
-      companyName: lead.companyName || "",
-      industry: lead.industry || "",
-      requirement: lead.requirement || "",
-      country: lead.country || "",
-      address: lead.address || "",
-      ...(lead.clientType && { clientType: lead.clientType }),
-      attachments: lead.attachments || [],
-      followUpDate: lead.followUpDate ?? null,
-      lastReminderAt: lead.lastReminderAt ?? null,
-      companyId: lead.companyId || null,
-      companySize: lead.companySize || "Medium"
-    });
-
-    await deal.save();
-    
-    //  DELETE the lead instead of just updating status
-    // First delete all notifications for this lead
-    if (lead.assignTo) {
-      await deleteNotificationsByEntity('lead', req.params.id, lead.assignTo._id);
-    }
-    await Notification.deleteMany({ "meta.leadId": req.params.id });
-    
-    // Then delete the lead
-    await Lead.findByIdAndDelete(req.params.id);
-
-    // Notify the assigned user about the conversion
-    const userId = lead.assignTo?._id?.toString();
-    if (userId) {
-      notifyUser(userId, "deal:created", {
-        dealId: deal._id,
-        dealName: deal.dealName,
-        leadName: lead.leadName,
+      const deal = new Deal({
+        leadId:        lead._id,
+        dealName:      lead.leadName,
+        assignedTo:    lead.assignTo?._id ?? null,
+        value:         formattedValue,
+        currency:      currency || "INR",
+        notes:         notes || "",
+        stage:         stage || "Qualification",
+        email:         lead.email || "",
+        phoneNumber:   lead.phoneNumber || "",
+        source:        lead.source || "",
+        companyName:   lead.companyName || "",
+        industry:      lead.industry || "",
+        requirement:   lead.requirement || "",
+        country:       lead.country || "",
+        address:       lead.address || "",
+        ...(lead.clientType && { clientType: lead.clientType }),
+        attachments:   lead.attachments || [],
+        followUpDate:  lead.followUpDate ?? null,
+        lastReminderAt: lead.lastReminderAt ?? null,
+        companyId:     lead.companyId || null,
+        companySize:   lead.companySize || "Medium",
       });
+
       await deal.save();
 
-      if (lead.assignTo) await deleteNotificationsByEntity("lead", req.params.id, lead.assignTo._id, tDB);
+      // Delete all notifications for this lead
+      if (lead.assignTo) {
+        await deleteNotificationsByEntity("lead", req.params.id, lead.assignTo._id, tDB);
+      }
       await Notification.deleteMany({ "meta.leadId": req.params.id });
+
+      // Delete the lead
       await Lead.findByIdAndDelete(req.params.id);
 
+      // Notify the assigned user about the conversion
       const userId = lead.assignTo?._id?.toString();
-      if (userId) notifyUser(userId, "deal:created", { dealId: deal._id, dealName: deal.dealName, leadName: lead.leadName });
-      if (lead.assignTo?.email)
-        await sendEmail({ to: lead.assignTo.email, subject: ` Lead Converted: ${lead.leadName}`,
-          text: `Lead "${lead.leadName}" has been successfully converted to a deal. Deal Name: ${deal.dealName}, Value: ${formattedValue}` });
+      if (userId) {
+        notifyUser(userId, "deal:created", {
+          dealId:   deal._id,
+          dealName: deal.dealName,
+          leadName: lead.leadName,
+        });
+      }
+
+      // Send email notification if assignee has email
+      if (lead.assignTo?.email) {
+        await sendEmail({
+          to:      lead.assignTo.email,
+          subject: ` Lead Converted: ${lead.leadName}`,
+          text:    `Lead "${lead.leadName}" has been successfully converted to a deal. Deal Name: ${deal.dealName}, Value: ${formattedValue}`,
+        });
+      }
 
       res.status(200).json({ message: "Lead converted to deal successfully", deal, leadDeleted: true });
     } catch (error) {
