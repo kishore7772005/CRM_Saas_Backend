@@ -28,7 +28,7 @@ const seedAdmin = async () => {
       admin.lastName = "Admin";
       admin.role = adminRole._id;
       admin.dateOfBirth = new Date("2000-01-01");
-      admin.password = "admin123"; // PLAIN — pre-save will hash
+      admin.password = "Techzar@123"; // PLAIN — pre-save will hash
             admin.status = "Active";
       await admin.save();          // triggers pre-save hook
       console.log(" Admin user password reset and updated");
@@ -37,7 +37,7 @@ const seedAdmin = async () => {
         firstName: "Super",
         lastName: "Admin",
         email,
-        password: "admin123", // PLAIN — pre-save will hash
+        password: "Techzar@123", // PLAIN — pre-save will hash
         role: adminRole._id,
         dateOfBirth: new Date("2000-01-01"),
       });

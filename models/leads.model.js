@@ -11,7 +11,7 @@ const leadSchema = new mongoose.Schema(
     clientType: {
       type: String,
       enum: ["B2B", "B2C"],
-      trim: true,
+      default: null,
     },
     industry: { type: String },
     requirement: { type: String },

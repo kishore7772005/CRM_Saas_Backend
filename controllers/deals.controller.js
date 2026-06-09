@@ -72,6 +72,7 @@ export default {
         value: "0",
         destination: lead.destination || "",
         duration: lead.duration || "",
+        clientType: lead.clientType || null,
       });
       await deal.save();
 
@@ -164,7 +165,7 @@ export default {
         requirement: requirement || "",
         address: address || "",
         country: country || "",
-        clientType: clientType || "",
+        clientType: clientType || null,
         followUpDate: parsedFollowUpDate,
         followUpComment: followUpComment || "",
         followUpHistory,

@@ -27,6 +27,7 @@ const dealSchema = new mongoose.Schema({
   clientType: {
     type: String,
     enum: ["B2B", "B2C"],
+    default: null,
     trim: true,
   },
   discountGiven: {

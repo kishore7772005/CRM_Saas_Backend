@@ -36,24 +36,21 @@ const roleController = {
   //  Get all roles with pagination
   getRoles: async (req, res) => {
     try {
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 10;
-      const skip = (page - 1) * limit;
-
-      const [roles, total] = await Promise.all([
-        Role.find().skip(skip).limit(limit),
-        Role.countDocuments(),
-      ]);
+      const roles = await Role.find().sort({ createdAt: -1 });
 
       res.status(200).json({
+        success: true,
+        total: roles.length,
         roles,
-        total,
-        page,
-        pages: Math.ceil(total / limit),
       });
     } catch (err) {
       console.error("Error fetching roles:", err);
-      res.status(500).json({ message: "Error fetching roles", error: err.message });
+
+      res.status(500).json({
+        success: false,
+        message: "Error fetching roles",
+        error: err.message,
+      });
     }
   },
 

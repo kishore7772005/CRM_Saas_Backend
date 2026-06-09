@@ -61,6 +61,9 @@ export default {
       }
 
       const data = { ...req.body };
+      if (!data.clientType || data.clientType === "") {
+        delete data.clientType;
+      }
 
       // Handle file uploads
       let existingAttachments = [];
@@ -492,7 +495,7 @@ getLeads: async (req, res) => {
       requirement: lead.requirement || "",
       country: lead.country || "",
       address: lead.address || "",
-      clientType: lead.clientType || "",
+      ...(lead.clientType && { clientType: lead.clientType }),
       attachments: lead.attachments || [],
       followUpDate: lead.followUpDate ?? null,
       lastReminderAt: lead.lastReminderAt ?? null,

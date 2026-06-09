@@ -99,7 +99,7 @@ export const notifyUser = (userId, event, payload) => {
     // queue offline
     if (!offlineMessages[uid]) offlineMessages[uid] = [];
     offlineMessages[uid].push({ event, payload });
-    console.log(" User offline, queued event:", event, "-> User:", uid);
+    console.log("🕓 User offline, queued event:", event, "-> User:", uid);
     return;
   }
   sockets.forEach((s) => s.emit(event, payload));
