@@ -7,6 +7,8 @@ import { getTenantModels } from "../models/tenant/index.js";
 
 // Legacy fallback for non-tenant routes
 import UserLegacy from "../models/user.model.js";
+import Tenant from "../models/master/Tenant.js";
+import { getTenantDB } from "../config/tenantDB.js";
 
 dotenv.config();
 
@@ -123,8 +125,49 @@ export default {
 
   loginUser: async (req, res) => {
     try {
-      const User = req.tenantDB ? getTenantModels(req.tenantDB).User : UserLegacy;
       const { email, password } = req.body;
+      let User;
+      let tenant = null;
+
+      if (req.tenantDB) {
+        User = getTenantModels(req.tenantDB).User;
+        tenant = req.tenant || null;
+      } else {
+        // Global login without slug in URL
+        const activeTenants = await Tenant.find({ isActive: true });
+        let foundUser = null;
+        let foundTenant = null;
+        let tenantDB = null;
+
+        for (const t of activeTenants) {
+          try {
+            const tDB = await getTenantDB(t.dbName);
+            const TenantUser = getTenantModels(tDB).User;
+            const u = await TenantUser.findOne({ email }).populate("role").select("+password");
+            if (u) {
+              const isMatch = await u.matchPassword(password);
+              if (isMatch) {
+                foundUser = u;
+                foundTenant = t;
+                tenantDB = tDB;
+                break;
+              }
+            }
+          } catch (err) {
+            console.error(`Error checking tenant ${t.slug}:`, err.message);
+          }
+        }
+
+        if (foundUser) {
+          User = getTenantModels(tenantDB).User;
+          tenant = foundTenant;
+          req.tenant = foundTenant;
+          req.tenantDB = tenantDB;
+        } else {
+          // Fallback to legacy user
+          User = UserLegacy;
+        }
+      }
 
       const user = await User.findOne({ email }).populate("role").select("+password");
       if (!user)
@@ -146,7 +189,7 @@ export default {
         email: user.email,
         profileImage: user.profileImage,
         role: user.role,
-        token: generateToken(user._id, req.tenant || null),
+        token: generateToken(user._id, tenant),
       });
     } catch (error) {
       console.error("Login error:", error);

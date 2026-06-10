@@ -12,9 +12,11 @@ export async function getTenantDB(dbName) {
     return connectionPool.get(dbName);
   }
 
-  const baseUri =
+  let baseUri =
     process.env.MONGO_BASE_URI ||
     (process.env.MONGO_URL || "mongodb://localhost:27017").replace(/\/[^/]*$/, "");
+  
+  baseUri = baseUri.replace(/\/+$/, "");
 
   const conn = await mongoose
     .createConnection(`${baseUri}/${dbName}`)
