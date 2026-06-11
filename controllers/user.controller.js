@@ -12,10 +12,11 @@ import { getTenantDB } from "../config/tenantDB.js";
 
 dotenv.config();
 
-const generateToken = (id, tenant = null) =>
+const generateToken = (id, tenant = null, tokenVersion = 0) =>
   jwt.sign(
     {
       id,
+      tokenVersion,
       ...(tenant
         ? { dbName: tenant.dbName, slug: tenant.slug, tenantId: tenant._id }
         : {}),
@@ -189,7 +190,7 @@ export default {
         email: user.email,
         profileImage: user.profileImage,
         role: user.role,
-        token: generateToken(user._id, tenant),
+        token: generateToken(user._id, tenant, user.tokenVersion || 0),
       });
     } catch (error) {
       console.error("Login error:", error);
@@ -203,14 +204,15 @@ export default {
       const user = await User.findById(req.user.id);
       if (!user) return res.status(404).json({ message: "User not found" });
 
-      if (!user.loginHistory || user.loginHistory.length === 0)
-        return res.json({ message: "Logout successful" });
+      // Invalidate current token by incrementing version
+      user.tokenVersion = (user.tokenVersion || 0) + 1;
 
+      if (!user.loginHistory) user.loginHistory = [];
       const latestEntry = [...user.loginHistory].reverse().find((e) => !e.logout);
       if (latestEntry) {
         latestEntry.logout = new Date();
-        await user.save({ validateBeforeSave: false });
       }
+      await user.save({ validateBeforeSave: false });
       res.json({ message: "Logout successful" });
     } catch (error) {
       console.error(error);

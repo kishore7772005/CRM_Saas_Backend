@@ -7,6 +7,7 @@ import {
   toggleTenant,
   deleteTenant,
   getDashboardStats,
+  impersonateTenant,
 } from "../controllers/tenant.controller.js";
 
 const router = express.Router();
@@ -20,5 +21,6 @@ router.get("/api/tenants",                superAdminAuth, listTenants);
 router.patch("/api/tenants/:id/toggle",   superAdminAuth, toggleTenant);
 router.delete("/api/tenants/:id",         superAdminAuth, deleteTenant);
 router.get("/api/dashboard/stats",        superAdminAuth, getDashboardStats);
+router.post("/api/tenants/:id/impersonate", superAdminAuth, impersonateTenant);
 
 export default router;
