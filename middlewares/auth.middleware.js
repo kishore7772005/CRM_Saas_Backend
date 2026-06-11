@@ -40,6 +40,13 @@ export const protect = async (req, res, next) => {
       return res.status(401).json({ message: "User not found" });
     }
 
+    // Verify token version matches database version to support logout invalidation
+    const expectedVersion = req.user.tokenVersion || 0;
+    const tokenVersion = decoded.tokenVersion || 0;
+    if (tokenVersion !== expectedVersion) {
+      return res.status(401).json({ message: "Token expired or invalidated" });
+    }
+
     next();
   } catch (err) {
     return res.status(401).json({ message: "Token failed" });

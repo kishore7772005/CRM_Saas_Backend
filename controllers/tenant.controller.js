@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
+import jwt from "jsonwebtoken";
 import Tenant from "../models/master/Tenant.js";
 import { getTenantDB } from "../config/tenantDB.js";
 import { getTenantModels } from "../models/tenant/index.js";
@@ -180,5 +181,51 @@ export const getDashboardStats = async (req, res) => {
   } catch (err) {
     console.error("Dashboard stats error:", err);
     res.status(500).json({ error: "Server error" });
+  }
+};
+
+export const impersonateTenant = async (req, res) => {
+  try {
+    const tenant = await Tenant.findById(req.params.id);
+    if (!tenant) return res.status(404).json({ error: "Tenant not found" });
+
+    const tenantDB = await getTenantDB(tenant.dbName);
+    const { User } = getTenantModels(tenantDB);
+
+    // Find the tenant admin user
+    const user = await User.findOne({ email: tenant.adminEmail.toLowerCase() }).populate("role");
+    if (!user) {
+      return res.status(404).json({ error: "Tenant administrator user not found" });
+    }
+
+    // Generate JWT token (signed with tenant SECRET_KEY and tokenVersion)
+    const token = jwt.sign(
+      {
+        id: user._id,
+        tokenVersion: user.tokenVersion || 0,
+        dbName: tenant.dbName,
+        slug: tenant.slug,
+        tenantId: tenant._id,
+      },
+      process.env.SECRET_KEY,
+      { expiresIn: "1d" }
+    );
+
+    res.json({
+      success: true,
+      token,
+      slug: tenant.slug,
+      user: {
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        profileImage: user.profileImage,
+        role: user.role,
+      }
+    });
+  } catch (err) {
+    console.error("Impersonate tenant error:", err);
+    res.status(500).json({ error: "Server error during impersonation" });
   }
 };
