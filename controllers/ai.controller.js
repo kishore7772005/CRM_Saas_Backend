@@ -1,11 +1,20 @@
-import Deal from "../models/deals.model.js";
-import Lead from "../models/leads.model.js";
-import User from "../models/user.model.js";
+import DealLegacy from "../models/deals.model.js";
+import LeadLegacy from "../models/leads.model.js";
+import UserLegacy from "../models/user.model.js";
+import { getTenantModels } from "../models/tenant/index.js";
+
+const getModels = (req) => {
+  if (req.tenantDB) {
+    const m = getTenantModels(req.tenantDB);
+    return { Deal: m.Deal, Lead: m.Lead, User: m.User };
+  }
+  return { Deal: DealLegacy, Lead: LeadLegacy, User: UserLegacy };
+};
 
 export default {
-// Process user chat messages and handle natural language queries for deals and leads
   processMessage: async (req, res) => {
     try {
+      const { Deal, Lead, User } = getModels(req);
 
       const payload = req.method === "GET" ? req.query : req.body;
       const { message } = payload;
@@ -180,15 +189,15 @@ export default {
 
       }
       if (lower.includes("hot leads")) {
-        return handleLeadStatus("Hot", userId, roleName, res);
+        return handleLeadStatus("Hot", userId, roleName, res, Lead);
       }
 
       if (lower.includes("warm leads")) {
-        return handleLeadStatus("Warm", userId, roleName, res);
+        return handleLeadStatus("Warm", userId, roleName, res, Lead);
       }
 
       if (lower.includes("cold leads")) {
-        return handleLeadStatus("Cold", userId, roleName, res);
+        return handleLeadStatus("Cold", userId, roleName, res, Lead);
       }
 
       if (lower.includes("my leads")) {
@@ -228,8 +237,7 @@ export default {
   }
 
 };
-// Helper function to fetch and format leads based on status (Hot/Warm/Cold)
-async function handleLeadStatus(status, userId, roleName, res) {
+async function handleLeadStatus(status, userId, roleName, res, Lead) {
 
   let query = { status };
 

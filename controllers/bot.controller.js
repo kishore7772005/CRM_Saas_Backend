@@ -1,17 +1,26 @@
-import Lead from "../models/leads.model.js";
-import Deal from "../models/deals.model.js";
-import CallLog from "../models/callLog.model.js";
+import LeadLegacy from "../models/leads.model.js";
+import DealLegacy from "../models/deals.model.js";
+import CallLogLegacy from "../models/callLog.model.js";
+import { getTenantModels } from "../models/tenant/index.js";
 import { v4 as uuidv4 } from 'uuid';
 
+const getModels = (req) => {
+  if (req.tenantDB) {
+    const m = getTenantModels(req.tenantDB);
+    return { Lead: m.Lead, Deal: m.Deal, CallLog: m.CallLog };
+  }
+  return { Lead: LeadLegacy, Deal: DealLegacy, CallLog: CallLogLegacy };
+};
+
 export default {
-  // Parse natural language call commands and initiate calls to leads or deals
   parseCallCommand: async (req, res) => {
     try {
+      const { Lead, Deal, CallLog } = getModels(req);
       const { command, contactId, contactType } = req.body;
       const userId   = req.user._id;
       const userRole = req.user.role.name;
       if (contactId && contactType) {
-        return initiateCall({ contactId, contactType, userId, userRole, res });
+        return initiateCall({ contactId, contactType, userId, userRole, res, Lead, Deal, CallLog });
       }
       if (!command || !command.toLowerCase().startsWith('call ')) {
         return res.status(400).json({ success: false, message: "Command must start with 'call '" });
@@ -63,7 +72,7 @@ export default {
         return initiateCall({
           contactId:   matches[0].id,
           contactType: matches[0].type,
-          userId, userRole, res
+          userId, userRole, res, Lead, Deal, CallLog
         });
       }
       return res.json({
@@ -79,9 +88,9 @@ export default {
     }
   },
 
-  // ── Suggestions (recent leads + deals) ───────────────────────────────────
   getSuggestions: async (req, res) => {
     try {
+      const { Lead, Deal } = getModels(req);
       const userId   = req.user._id;
       const userRole = req.user.role.name;
 
@@ -119,8 +128,7 @@ export default {
     }
   }
 };
-// Helper function to initiate a call, create call log
-async function initiateCall({ contactId, contactType, userId, userRole, res }) {
+async function initiateCall({ contactId, contactType, userId, userRole, res, Lead, Deal, CallLog }) {
   let record, name, company, phoneRaw;
 
   if (contactType === "lead") {

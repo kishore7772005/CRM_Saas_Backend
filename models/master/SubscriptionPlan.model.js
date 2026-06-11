@@ -5,14 +5,14 @@ const subscriptionPlanSchema = new mongoose.Schema(
   {
     plan_name:            { type: String, required: true, trim: true },
     plan_code:            { type: String, required: true, unique: true, lowercase: true, trim: true },
-    plan_type:            { type: String, enum: ["free", "paid", "trial", "enterprise"], required: true },
-    status:               { type: String, enum: ["active", "inactive", "archived"], default: "active" },
+    plan_type:            { type: String, required: true },
+    status:               { type: String, default: "active" },
     description:          { type: String, default: "" },
 
     price_monthly:        { type: Number, default: 0, min: 0 },
     price_yearly:         { type: Number, default: 0, min: 0 },
     currency:             { type: String, default: "USD", maxlength: 3 },
-    billing_cycle:        { type: String, enum: ["monthly", "yearly", "one_time"], required: true },
+    billing_cycle:        { type: String, required: true },
 
    // max_tenants:          { type: Number, default: 0 },
     max_users_per_tenant: { type: Number, default: 0 },
