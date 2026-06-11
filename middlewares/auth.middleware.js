@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 
 import { getTenantDB } from "../config/tenantDB.js";
 import { getTenantModels } from "../models/tenant/index.js";
+import Tenant from "../models/master/Tenant.js";
 
 // Legacy single-tenant imports — still used when req.tenantDB is absent
 import UserLegacy from "../models/user.model.js";
@@ -38,6 +39,18 @@ export const protect = async (req, res, next) => {
 
     if (!req.user) {
       return res.status(401).json({ message: "User not found" });
+    }
+
+    // Check subscription plan expiration
+    let tenant = req.tenant;
+    if (!tenant && decoded.tenantId) {
+      tenant = await Tenant.findById(decoded.tenantId);
+    } else if (!tenant && decoded.dbName) {
+      tenant = await Tenant.findOne({ dbName: decoded.dbName });
+    }
+
+    if (tenant && tenant.plan_end_date && new Date() > new Date(tenant.plan_end_date)) {
+      return res.status(401).json({ message: "Subscription expired. Access restricted." });
     }
 
     // Verify token version matches database version to support logout invalidation

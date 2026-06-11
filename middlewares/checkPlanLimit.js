@@ -14,7 +14,7 @@ import { getTenantModels } from "../models/tenant/index.js";
  */
 const checkPlanLimit = (limitKey) => async (req, res, next) => {
   try {
-    const tenantId = req.tenantId || req.user?.tenantId;
+    const tenantId = req.tenantId || req.tenant?._id || req.user?.tenantId;
 
     // No tenant context in this request — skip the check
     if (!tenantId) return next();

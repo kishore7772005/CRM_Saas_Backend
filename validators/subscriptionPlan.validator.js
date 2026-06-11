@@ -1,4 +1,4 @@
-const VALID_PLAN_TYPES   = ["free", "paid", "trial", "enterprise"];
+const VALID_PLAN_TYPES   = ["free", "paid", "enterprise"];
 const VALID_STATUSES     = ["active", "inactive", "archived"];
 const VALID_CYCLES       = ["monthly", "yearly", "one_time"];
 const PLAN_CODE_REGEX    = /^[a-z0-9_]+$/;

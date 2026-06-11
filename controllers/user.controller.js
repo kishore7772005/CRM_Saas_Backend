@@ -63,12 +63,26 @@ export default {
       const User = req.tenantDB ? getTenantModels(req.tenantDB).User : UserLegacy;
       const user = await User.findById(req.user.id).populate("role");
       if (!user) return res.status(404).json({ message: "User not found" });
+
+      let tenantLimit = null;
+      if (req.tenant) {
+        const tenant = await Tenant.findById(req.tenant._id).populate("plan_id");
+        if (tenant && tenant.plan_id) {
+          tenantLimit = {
+            plan_name: tenant.plan_id.plan_name,
+            max_users: tenant.plan_id.max_users_per_tenant,
+            plan_end_date: tenant.plan_end_date,
+          };
+        }
+      }
+
       res.json({
         _id: user._id,
         name: `${user.firstName} ${user.lastName}`,
         email: user.email,
         profileImage: user.profileImage,
         role: user.role,
+        tenantLimit,
       });
     } catch (err) {
       res.status(500).json({ message: err.message });
@@ -177,6 +191,13 @@ export default {
       const isMatch = await user.matchPassword(password);
       if (!isMatch)
         return res.status(401).json({ success: false, message: "Invalid email or password" });
+
+      if (tenant && tenant.plan_end_date && new Date() > new Date(tenant.plan_end_date)) {
+        return res.status(403).json({
+          success: false,
+          message: "Your subscription validity has expired. Please contact superadmin to renew."
+        });
+      }
 
       if (!user.loginHistory) user.loginHistory = [];
       user.loginHistory.push({ login: new Date() });

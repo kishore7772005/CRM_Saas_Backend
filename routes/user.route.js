@@ -9,6 +9,7 @@ import {
 import upload from "../middlewares/upload.js";
 import { getTenantModels } from "../models/tenant/index.js";
 import UserLegacy from "../models/user.model.js";
+import checkPlanLimit from "../middlewares/checkPlanLimit.js";
 
 const router = express.Router();
 
@@ -43,6 +44,7 @@ router.post(
   "/create",
   protect,
   adminCreateOnly,
+  checkPlanLimit("max_users_per_tenant"),
   upload.single("profileImage"),
   indexControllers.usersController.createUser,
 );

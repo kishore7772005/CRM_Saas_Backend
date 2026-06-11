@@ -5,7 +5,7 @@ const subscriptionPlanSchema = new mongoose.Schema(
   {
     plan_name:            { type: String, required: true, trim: true },
     plan_code:            { type: String, required: true, unique: true, lowercase: true, trim: true },
-    plan_type:            { type: String, enum: ["free", "paid", "trial", "enterprise"], required: true },
+    plan_type:            { type: String, enum: ["free", "paid", "enterprise"], required: true },
     status:               { type: String, enum: ["active", "inactive", "archived"], default: "active" },
     description:          { type: String, default: "" },
 
