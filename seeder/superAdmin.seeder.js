@@ -9,23 +9,15 @@
  */
 
 import bcrypt from "bcryptjs";
-import crypto from "crypto";
 import dotenv from "dotenv";
 import { masterConn } from "../config/masterDB.js";
 import SuperAdmin from "../models/master/SuperAdmin.js";
 
 dotenv.config();
 
-function generatePassword(length = 12) {
-  const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$!";
-  return Array.from(crypto.randomBytes(length))
-    .map(b => charset[b % charset.length])
-    .join("");
-}
-
-const NAME     = process.env.SUPERADMIN_NAME  || "Super Admin";
-const EMAIL    = process.env.SUPERADMIN_EMAIL || "superadmin@crm.com";
-const PASSWORD = process.env.SUPERADMIN_PASSWORD || generatePassword();
+const NAME     = process.env.SUPERADMIN_NAME     || "Super Admin";
+const EMAIL    = process.env.SUPERADMIN_EMAIL    || "superadmin@crm.com";
+const PASSWORD = process.env.SUPERADMIN_PASSWORD || "superadmin123";
 
 async function seed() {
   try {
@@ -46,11 +38,7 @@ async function seed() {
       console.log(`SuperAdmin created: ${EMAIL}`);
     }
 
-    console.log("─────────────────────────────────────");
-    console.log(`  Email   : ${EMAIL}`);
-    console.log(`  Password: ${PASSWORD}`);
-    console.log("─────────────────────────────────────");
-    console.log("Save the password above — it will not be shown again.");
+    console.log(`Password: ${PASSWORD}`);
     console.log("Done.");
     process.exit(0);
   } catch (err) {

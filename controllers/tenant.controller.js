@@ -1,4 +1,4 @@
-import crypto from "crypto";
+import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
@@ -128,9 +128,7 @@ export const createTenant = async (req, res) => {
       return res.status(409).json({ error: "Slug already taken" });
     }
 
-    const plainPassword = generatePassword();
     const dbName = `crm_${slug}`;
-
     const tenant = await Tenant.create({
       name,
       slug,
@@ -192,6 +190,8 @@ export const createTenant = async (req, res) => {
         },
       });
 
+
+
       await User.create({
         firstName:   adminName.split(" ")[0],
         lastName:    adminName.split(" ").slice(1).join(" ") || adminName.split(" ")[0],
@@ -202,6 +202,7 @@ export const createTenant = async (req, res) => {
         status:      "Active",
       });
     } catch (setupErr) {
+      // Setup failed — remove the orphaned tenant record so the slug can be retried
       await Tenant.findByIdAndDelete(tenant._id);
       console.error("Tenant setup failed, rolled back tenant record:", setupErr.message);
       return res.status(500).json({ error: "Tenant setup failed: " + setupErr.message });
