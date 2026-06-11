@@ -12,7 +12,7 @@ const subscriptionPlanSchema = new mongoose.Schema(
     price_monthly:        { type: Number, default: 0, min: 0 },
     price_yearly:         { type: Number, default: 0, min: 0 },
     currency:             { type: String, default: "USD", maxlength: 3 },
-    billing_cycle:        { type: String, enum: ["monthly", "yearly", "one_time"], required: true },
+    billing_cycle:        { type: String, required: true },
 
    // max_tenants:          { type: Number, default: 0 },
     max_users_per_tenant: { type: Number, default: 0 },
