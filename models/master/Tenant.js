@@ -15,6 +15,7 @@ const tenantSchema = new mongoose.Schema(
     plan_status:     { type: String, enum: ["active", "expired", "cancelled", "trial"], default: "trial" },
     plan_start_date: { type: Date, default: null },
     plan_end_date:   { type: Date, default: null },
+    isDbRefreshed:   { type: Boolean, default: false },
   },
   { timestamps: true }
 );

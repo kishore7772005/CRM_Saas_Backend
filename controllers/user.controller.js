@@ -27,14 +27,27 @@ const generateToken = (id, tenant = null, tokenVersion = 0) =>
 
 export default {
   createUser: async (req, res) => {
-    console.log("BODY:", req.body);
-    console.log("FILE:", req.file);
     try {
       const User = req.tenantDB ? getTenantModels(req.tenantDB).User : UserLegacy;
       const {
         firstName, lastName, email, password, mobileNumber,
         role, status, gender, address, dateOfBirth,
       } = req.body;
+
+      // Limit check
+      if (req.tenant) {
+        const tenant = await Tenant.findById(req.tenant._id).populate("plan_id");
+        if (tenant && tenant.plan_id) {
+          const activeUsersCount = await User.countDocuments();
+          if (activeUsersCount >= tenant.plan_id.max_users_per_tenant) {
+            return res.status(403).json({
+              success: false,
+              limitExceeded: true,
+              message: `User limit reached (${tenant.plan_id.max_users_per_tenant} max). Please upgrade your plan.`
+            });
+          }
+        }
+      }
 
       const profileImage = req.file ? req.file.filename : null;
       const user = await User.create({
@@ -148,40 +161,8 @@ export default {
         User = getTenantModels(req.tenantDB).User;
         tenant = req.tenant || null;
       } else {
-        // Global login without slug in URL
-        const activeTenants = await Tenant.find({ isActive: true });
-        let foundUser = null;
-        let foundTenant = null;
-        let tenantDB = null;
-
-        for (const t of activeTenants) {
-          try {
-            const tDB = await getTenantDB(t.dbName);
-            const TenantUser = getTenantModels(tDB).User;
-            const u = await TenantUser.findOne({ email }).populate("role").select("+password");
-            if (u) {
-              const isMatch = await u.matchPassword(password);
-              if (isMatch) {
-                foundUser = u;
-                foundTenant = t;
-                tenantDB = tDB;
-                break;
-              }
-            }
-          } catch (err) {
-            console.error(`Error checking tenant ${t.slug}:`, err.message);
-          }
-        }
-
-        if (foundUser) {
-          User = getTenantModels(tenantDB).User;
-          tenant = foundTenant;
-          req.tenant = foundTenant;
-          req.tenantDB = tenantDB;
-        } else {
-          // Fallback to legacy user
-          User = UserLegacy;
-        }
+        // Global login without slug in URL — disable scanning other tenant databases to enforce tenant URL usage
+        User = UserLegacy;
       }
 
       const user = await User.findOne({ email }).populate("role").select("+password");
@@ -192,11 +173,21 @@ export default {
       if (!isMatch)
         return res.status(401).json({ success: false, message: "Invalid email or password" });
 
-      if (tenant && tenant.plan_end_date && new Date() > new Date(tenant.plan_end_date)) {
+      if (tenant && (tenant.plan_status === "expired" || (tenant.plan_end_date && new Date() > new Date(tenant.plan_end_date)))) {
         return res.status(403).json({
           success: false,
+          planExpired: true,
           message: "Your subscription validity has expired. Please contact superadmin to renew."
         });
+      }
+
+      let isDbRefreshed = false;
+      if (tenant) {
+        isDbRefreshed = tenant.isDbRefreshed || false;
+        if (isDbRefreshed) {
+          tenant.isDbRefreshed = false;
+          await tenant.save();
+        }
       }
 
       if (!user.loginHistory) user.loginHistory = [];
@@ -211,6 +202,7 @@ export default {
         email: user.email,
         profileImage: user.profileImage,
         role: user.role,
+        isDbRefreshed,
         token: generateToken(user._id, tenant, user.tokenVersion || 0),
       });
     } catch (error) {
