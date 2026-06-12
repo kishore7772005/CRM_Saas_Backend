@@ -43,6 +43,7 @@ import { initSocket } from "./realtime/socket.js";
 
 // Background jobs
 import "./cron/emailCron.js";
+import "./cron/subscriptionCron.js";
 import "./workers/emailWorker.js";
 
 dotenv.config();
