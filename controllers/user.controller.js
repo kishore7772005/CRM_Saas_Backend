@@ -7,6 +7,7 @@ import { getTenantModels } from "../models/tenant/index.js";
 
 // Legacy fallback for non-tenant routes
 import UserLegacy from "../models/user.model.js";
+import StreakLegacy from "../models/streak.model.js";
 import Tenant from "../models/master/Tenant.js";
 import { getTenantDB } from "../config/tenantDB.js";
 
@@ -202,6 +203,29 @@ export default {
       if (!user.loginHistory) user.loginHistory = [];
       user.loginHistory.push({ login: new Date() });
       await user.save({ validateBeforeSave: false });
+
+      // Update streak document in the tenant (or legacy) database
+      try {
+        const Streak = req.tenantDB ? getTenantModels(req.tenantDB).Streak : StreakLegacy;
+        const today = new Date();
+        const todayStr = today.toDateString();
+        let streakDoc = await Streak.findOne({ userId: user._id });
+        if (!streakDoc) {
+          streakDoc = await Streak.create({ userId: user._id, currentStreak: 0, longestStreak: 0, productiveDays: 0 });
+        }
+        const lastStr = streakDoc.lastLoginDate ? new Date(streakDoc.lastLoginDate).toDateString() : null;
+        if (lastStr !== todayStr) {
+          const yesterday = new Date(today);
+          yesterday.setDate(yesterday.getDate() - 1);
+          streakDoc.currentStreak = lastStr === yesterday.toDateString() ? (streakDoc.currentStreak || 0) + 1 : 1;
+          if (streakDoc.currentStreak > (streakDoc.longestStreak || 0)) streakDoc.longestStreak = streakDoc.currentStreak;
+          streakDoc.productiveDays = (streakDoc.productiveDays || 0) + 1;
+          streakDoc.lastLoginDate = today;
+          await streakDoc.save();
+        }
+      } catch (streakErr) {
+        console.error("Streak update failed (non-fatal):", streakErr.message);
+      }
 
       res.status(200).json({
         success: true,

@@ -4,9 +4,8 @@ import { protect } from "../middlewares/auth.middleware.js";
 const router = express.Router();
 
 // POST /api/ai/process
-router.post("/chat", protect, aiController.processMessage); 
-
-// GET /api/ai/process (optional GET endpoint)
-router.get("/chat", protect, aiController.processMessage);
+router.post("/chat", protect, aiController.processMessage);
+router.get("/chat",  protect, aiController.processMessage);
+router.get("/history", protect, aiController.getChatHistory);
 
 export default router;

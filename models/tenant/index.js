@@ -19,6 +19,8 @@ import emailTemplateSchema from "../schemas/emailTemplateSchema.js";
 import massEmailSchema      from "../schemas/massEmailSchema.js";
 import lostDealReasonSchema from "../schemas/lostDealReasonSchema.js";
 import pricingRiskSchema    from "../schemas/pricingRiskSchema.js";
+import aiChatSchema        from "../schemas/aiChatSchema.js";
+import botHistorySchema    from "../schemas/botHistorySchema.js";
 
 const MODEL_MAP = [
   ["User",             userSchema],
@@ -42,6 +44,8 @@ const MODEL_MAP = [
   ["MassEmail",        massEmailSchema],
   ["LostDealReason",   lostDealReasonSchema],
   ["PricingRisk",      pricingRiskSchema],
+  ["AiChat",           aiChatSchema],
+  ["BotHistory",       botHistorySchema],
 ];
 
 /**
@@ -84,5 +88,7 @@ export function getTenantModels(conn) {
     MassEmail:       conn.model("MassEmail"),
     LostDealReason:  conn.model("LostDealReason"),
     PricingRisk:     conn.model("PricingRisk"),
+    AiChat:          conn.model("AiChat"),
+    BotHistory:      conn.model("BotHistory"),
   };
 }
