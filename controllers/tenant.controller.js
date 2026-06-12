@@ -3,7 +3,9 @@ import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import Tenant from "../models/master/Tenant.js";
-import { getTenantDB } from "../config/tenantDB.js";
+import UpgradeRequest from "../models/master/UpgradeRequest.js";
+import SubscriptionPlan from "../models/master/SubscriptionPlan.model.js";
+import { getTenantDB, dropTenantDB } from "../config/tenantDB.js";
 import { getTenantModels } from "../models/tenant/index.js";
 import sendEmail from "../utils/sendEmail.js";
 
@@ -112,6 +114,7 @@ export const createTenant = async (req, res) => {
   try {
     const { name, slug, adminName, adminEmail } = req.body;
     const plainPassword = generatePassword();
+    console.log(`[TENANT CREATION] Generated password for tenant "${slug}": ${plainPassword}`);
 
     if (!slug || !SLUG_REGEX.test(slug)) {
       return res.status(400).json({
@@ -233,7 +236,7 @@ export const createTenant = async (req, res) => {
 
 export const listTenants = async (req, res) => {
   try {
-    const tenants = await Tenant.find().sort({ createdAt: -1 });
+    const tenants = await Tenant.find().populate("plan_id").sort({ createdAt: -1 });
     res.json({ tenants });
   } catch (err) {
     console.error("List tenants error:", err);
@@ -258,14 +261,16 @@ export const toggleTenant = async (req, res) => {
 
 export const deleteTenant = async (req, res) => {
   try {
-    const tenant = await Tenant.findByIdAndUpdate(
-      req.params.id,
-      { isActive: false },
-      { new: true }
-    );
+    const tenant = await Tenant.findById(req.params.id);
     if (!tenant) return res.status(404).json({ error: "Tenant not found" });
 
-    res.json({ success: true, tenant });
+    // Drop DB
+    await dropTenantDB(tenant.dbName);
+
+    // Delete Master Record
+    await Tenant.findByIdAndDelete(req.params.id);
+
+    res.json({ success: true, message: "Tenant and database deleted successfully" });
   } catch (err) {
     console.error("Delete tenant error:", err);
     res.status(500).json({ error: "Server error" });
@@ -335,5 +340,281 @@ export const impersonateTenant = async (req, res) => {
   } catch (err) {
     console.error("Impersonate tenant error:", err);
     res.status(500).json({ error: "Server error during impersonation" });
+  }
+};
+
+export const resetTenantDB = async (tenant, plainPassword) => {
+  // 1. Drop existing database
+  await dropTenantDB(tenant.dbName);
+
+  // 2. Re-create default tables and users
+  const tenantDB = await getTenantDB(tenant.dbName);
+  const { Role, User } = getTenantModels(tenantDB);
+
+  const adminRole = await Role.create({
+    name: "Admin",
+    description: "Full access",
+    permissions: {
+      dashboard:           true,
+      leads:               true,
+      create_lead:         true,
+      deals_all:           true,
+      create_deal:         true,
+      deals_pipeline:      true,
+      proposal:            true,
+      invoices:            true,
+      activities_calendar: true,
+      activities_list:     true,
+      users_roles:         true,
+      email_chat:          true,
+      email_campaigns:     true,
+      reports:             true,
+      settings:            true,
+      whatsapp_chat:       true,
+      streak_leaderboard:  true,
+    },
+  });
+
+  await Role.create({
+    name: "Sales",
+    description: "Limited access",
+    permissions: {
+      dashboard:           true,
+      leads:               true,
+      create_lead:         true,
+      deals_all:           true,
+      create_deal:         true,
+      deals_pipeline:      true,
+      proposal:            true,
+      invoices:            true,
+      activities_calendar: true,
+      activities_list:     true,
+      users_roles:         false,
+      email_chat:          true,
+      email_campaigns:     false,
+      reports:             false,
+      settings:            false,
+      whatsapp_chat:       true,
+      streak_leaderboard:  true,
+    },
+  });
+
+  await User.create({
+    firstName:   tenant.adminName.split(" ")[0],
+    lastName:    tenant.adminName.split(" ").slice(1).join(" ") || tenant.adminName.split(" ")[0],
+    email:       tenant.adminEmail.toLowerCase(),
+    password:    plainPassword,
+    role:        adminRole._id,
+    dateOfBirth: new Date("1990-01-01"),
+    status:      "Active",
+  });
+};
+
+export const createUpgradeRequest = async (req, res) => {
+  try {
+    const { tenantSlug, planId, wantedUsers, loginDays, description, type } = req.body;
+
+    const tenant = await Tenant.findOne({ slug: tenantSlug }).populate("plan_id");
+    if (!tenant) return res.status(404).json({ success: false, error: "Tenant not found" });
+
+    const newPlan = await SubscriptionPlan.findById(planId);
+    if (!newPlan) return res.status(404).json({ success: false, error: "Subscription plan not found" });
+
+    let proratedDiscount = 0;
+    if (type === "mid_cycle" && tenant.plan_end_date && tenant.plan_id) {
+      const remainingMs = new Date(tenant.plan_end_date) - new Date();
+      const remainingDays = Math.max(0, Math.ceil(remainingMs / (1000 * 60 * 60 * 24)));
+      const dailyRate = (tenant.plan_id.price_monthly || 0) / 30;
+      proratedDiscount = Number((dailyRate * remainingDays).toFixed(2));
+    }
+
+    const basePrice = newPlan.price_monthly || 0;
+    const finalPrice = Math.max(0, Number((basePrice - proratedDiscount).toFixed(2)));
+
+    const request = await UpgradeRequest.create({
+      tenant_id: tenant._id,
+      plan_id: planId,
+      wanted_users: Number(wantedUsers),
+      login_days: Number(loginDays),
+      description: description || "",
+      type,
+      prorated_discount: proratedDiscount,
+      final_price: finalPrice,
+    });
+
+    res.status(201).json({ success: true, request });
+  } catch (err) {
+    console.error("Create upgrade request error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const getUpgradeRequests = async (req, res) => {
+  try {
+    const requests = await UpgradeRequest.find({ status: "pending" })
+      .populate("tenant_id")
+      .populate("plan_id")
+      .sort({ createdAt: -1 });
+
+    res.json({ success: true, requests });
+  } catch (err) {
+    console.error("Get upgrade requests error:", err);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+};
+
+function upgradeEmailHtml({ adminName, planName, wantedUsers, loginDays, password, loginUrl }) {
+  return `
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; background-color: #f4f6fb; padding: 20px;">
+  <div style="background-color: #ffffff; padding: 30px; border-radius: 12px; max-width: 550px; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+    <h2 style="color: #008ecc; text-align: center;">Workspace Upgrade Activated</h2>
+    <p>Dear <strong>${adminName}</strong>,</p>
+    <p>Your tenant workspace has been successfully upgraded to the <strong>${planName}</strong> plan.</p>
+    <h4 style="border-bottom: 1px solid #eee; padding-bottom: 5px; color: #333;">New Plan Specifications:</h4>
+    <ul>
+      <li><strong>User Seats:</strong> ${wantedUsers} Max Active Users</li>
+      <li><strong>Validity Days:</strong> ${loginDays} Days</li>
+    </ul>
+    <div style="background-color: #f0f7ff; border: 1px solid #d0e5ff; padding: 15px; border-radius: 8px; margin: 20px 0;">
+      <h5 style="margin: 0 0 10px 0; color: #008ecc;">Clean Database Initialized</h5>
+      <p style="margin: 0; font-size: 13px; color: #555;">
+        As requested for this plan upgrade, your database was cleanly reset. Stale data has been wiped. Here are your temporary administrator credentials:
+      </p>
+      <p style="margin: 10px 0 0 0; font-family: monospace; font-size: 15px;">
+        <strong>Password:</strong> <span style="background: #fff; padding: 2px 8px; border: 1px dashed #008ecc; font-weight: bold; color: #008ecc;">${password}</span>
+      </p>
+    </div>
+    <div style="text-align: center; margin-top: 25px;">
+      <a href="${loginUrl}" target="_blank" style="background-color: #008ecc; color: #ffffff; text-decoration: none; padding: 12px 30px; border-radius: 6px; font-weight: bold; display: inline-block;">Login to CRM Workspace</a>
+    </div>
+    <p style="font-size: 11px; color: #888; margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px; text-align: center;">
+      © ${new Date().getFullYear()} TZI Support. All rights reserved.
+    </p>
+  </div>
+</body>
+</html>`;
+}
+
+export const approveUpgradeRequest = async (req, res) => {
+  try {
+    const request = await UpgradeRequest.findById(req.params.id)
+      .populate("tenant_id")
+      .populate("plan_id");
+
+    if (!request) return res.status(404).json({ success: false, error: "Request not found" });
+    if (request.status !== "pending") {
+      return res.status(400).json({ success: false, error: "Request has already been processed" });
+    }
+
+    const tenant = request.tenant_id;
+    const plan = request.plan_id;
+
+    // 1. Generate auto password
+    const plainPassword = generatePassword();
+    console.log(`[PLAN UPGRADE] Generated password for tenant "${tenant.slug}": ${plainPassword}`);
+
+    // 2. Refresh Tenant DB (destructive reset)
+    await resetTenantDB(tenant, plainPassword);
+
+    // 3. Update Tenant fields
+    tenant.plan_id = plan._id;
+    tenant.plan_status = "active";
+    tenant.plan_start_date = new Date();
+    tenant.plan_end_date = new Date(Date.now() + request.login_days * 24 * 60 * 60 * 1000);
+    tenant.isDbRefreshed = true; // flag to trigger dashboard notification on client
+    await tenant.save();
+
+    // 4. Update request status
+    request.status = "approved";
+    await request.save();
+
+    // 5. Send Upgrade activation email with generated credentials
+    const loginUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/${tenant.slug}/login`;
+    sendEmail({
+      to: tenant.adminEmail,
+      subject: `Your CRM Workspace Plan Has Been Upgraded — New Credentials`,
+      html: upgradeEmailHtml({
+        adminName: tenant.adminName,
+        planName: plan.plan_name,
+        wantedUsers: request.wanted_users,
+        loginDays: request.login_days,
+        password: plainPassword,
+        loginUrl,
+      }),
+    }).catch((emailErr) => console.error("Upgrade activation email failed:", emailErr.message));
+
+    res.json({ success: true, message: "Upgrade request approved, database reset successfully." });
+  } catch (err) {
+    console.error("Approve upgrade request error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const getTenantDetails = async (req, res) => {
+  try {
+    const tenant = await Tenant.findById(req.params.id).populate("plan_id");
+    if (!tenant) return res.status(404).json({ success: false, error: "Tenant not found" });
+
+    // Fetch user count from tenant database
+    let activeUsersCount = 0;
+    try {
+      const tenantDB = await getTenantDB(tenant.dbName);
+      const { User } = getTenantModels(tenantDB);
+      activeUsersCount = await User.countDocuments();
+    } catch (dbErr) {
+      console.error(`Failed to read user count for tenant DB ${tenant.dbName}:`, dbErr.message);
+    }
+
+    // Fetch plan upgrade history for this tenant
+    const history = await UpgradeRequest.find({ tenant_id: tenant._id, status: "approved" })
+      .populate("plan_id")
+      .sort({ updatedAt: -1 });
+
+    res.json({
+      success: true,
+      tenant: {
+        _id: tenant._id,
+        name: tenant.name,
+        slug: tenant.slug,
+        dbName: tenant.dbName,
+        adminEmail: tenant.adminEmail,
+        adminName: tenant.adminName,
+        isActive: tenant.isActive,
+        plan_id: tenant.plan_id,
+        plan_status: tenant.plan_status,
+        plan_start_date: tenant.plan_start_date,
+        plan_end_date: tenant.plan_end_date,
+        activeUsersCount,
+      },
+      history: history || [],
+    });
+  } catch (err) {
+    console.error("Get tenant details error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const getTenantBySlugPublic = async (req, res) => {
+  try {
+    const tenant = await Tenant.findOne({ slug: req.params.slug.toLowerCase() }).populate("plan_id");
+    if (!tenant) return res.status(404).json({ success: false, error: "Tenant not found" });
+
+    res.json({
+      success: true,
+      tenant: {
+        _id: tenant._id,
+        name: tenant.name,
+        slug: tenant.slug,
+        plan_id: tenant.plan_id,
+        plan_status: tenant.plan_status,
+        plan_start_date: tenant.plan_start_date,
+        plan_end_date: tenant.plan_end_date,
+      }
+    });
+  } catch (err) {
+    console.error("Get public tenant by slug error:", err);
+    res.status(500).json({ success: false, error: err.message });
   }
 };
