@@ -9,7 +9,13 @@ export default {
       const Settings = getSettings(req);
       let settings = await Settings.findOne();
       if (!settings) settings = await Settings.create({});
-      res.status(200).json(settings);
+      
+      const responseData = settings.toObject();
+      if (req.tenant) {
+        responseData.tenantEmail = req.tenant.adminEmail;
+        responseData.tenantName = req.tenant.name;
+      }
+      res.status(200).json(responseData);
     } catch (error) {
       console.error("Get Settings Error:", error);
       res.status(500).json({ message: "Server Error" });
@@ -60,6 +66,40 @@ export default {
       res.status(200).json({ success: true, message: "Company name updated successfully", data: settings });
     } catch (error) {
       console.error("Update Company Name Error:", error);
+      res.status(500).json({ message: "Server Error" });
+    }
+  },
+
+  updateInvoiceLogo: async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "Invoice logo file is required" });
+      const Settings = getSettings(req);
+      const logoPath = req.file.path.replace(/\\/g, "/");
+      let settings = await Settings.findOne();
+      if (!settings) settings = new Settings({ invoiceLogo: logoPath });
+      else settings.invoiceLogo = logoPath;
+      await settings.save();
+      res.status(200).json({ success: true, message: "Invoice logo updated successfully", data: settings });
+    } catch (error) {
+      console.error("Update Invoice Logo Error:", error);
+      res.status(500).json({ message: "Server Error" });
+    }
+  },
+
+  updateInvoiceEmailSettings: async (req, res) => {
+    try {
+      const { defaultFromEmail, defaultToEmail } = req.body;
+      const Settings = getSettings(req);
+      let settings = await Settings.findOne();
+      if (!settings) settings = new Settings({ defaultFromEmail, defaultToEmail });
+      else {
+        settings.defaultFromEmail = defaultFromEmail !== undefined ? defaultFromEmail : settings.defaultFromEmail;
+        settings.defaultToEmail = defaultToEmail !== undefined ? defaultToEmail : settings.defaultToEmail;
+      }
+      await settings.save();
+      res.status(200).json({ success: true, message: "Invoice email settings updated successfully", data: settings });
+    } catch (error) {
+      console.error("Update Invoice Email Settings Error:", error);
       res.status(500).json({ message: "Server Error" });
     }
   },

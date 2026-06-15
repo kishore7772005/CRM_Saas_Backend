@@ -109,11 +109,19 @@
   <body>
     <div class="invoice-box">
       <!-- Logo -->
-      <img
-        src="https://crm.stagingzar.com/images/TZI_Logo-04_-_Copy-removebg-preview.png"
-        alt="TZI Logo"
-        class="logo"
-      />
+      <% if (locals.logoDataURI && logoDataURI) { %>
+        <img
+          src="<%= logoDataURI %>"
+          alt="Company Logo"
+          class="logo"
+        />
+      <% } else { %>
+        <img
+          src="https://crm.stagingzar.com/images/TZI_Logo-04_-_Copy-removebg-preview.png"
+          alt="TZI Logo"
+          class="logo"
+        />
+      <% } %>
 
       <!-- Info -->
       <div class="info-section">
