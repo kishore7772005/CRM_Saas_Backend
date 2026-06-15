@@ -4,8 +4,10 @@ import { getTenantModels } from "../models/tenant/index.js";
 import MassEmailLegacy from "../models/massEmail.model.js";
 import LeadLegacy      from "../models/leads.model.js";
 import DealLegacy      from "../models/deals.model.js";
+import SettingsLegacy  from "../models/Settings.js";
 
 import fs from "fs";
+import path from "path";
 import sendEmail from "../utils/sendEmail.js";
 import { addEmailToQueue } from "../utils/emailQueue.js";
 
@@ -13,6 +15,9 @@ const getModels = (req) => {
   if (req.tenantDB) return getTenantModels(req.tenantDB);
   return { MassEmail: MassEmailLegacy, Lead: LeadLegacy, Deal: DealLegacy };
 };
+
+const getSettings = (req) =>
+  req.tenantDB ? getTenantModels(req.tenantDB).Settings : SettingsLegacy;
 
 export default {
 
@@ -86,8 +91,6 @@ sendBulkEmail : async (req, res) => {
   try {
     const { MassEmail } = getModels(req);
     let { recipients, templateTitle, subject, content, scheduledFor } = req.body;
-    const logoUrl = "https://res.cloudinary.com/djpljugqo/image/upload/v1771404424/TZI_Logo-04_-_Copy-removebg-preview_o6ocur.png";
-
 
     //  Handle single recipient case (FormData sends string if only 1)
     if (!Array.isArray(recipients)) {
@@ -104,6 +107,23 @@ sendBulkEmail : async (req, res) => {
         .json({ message: "Subject and content are required" });
     }
 
+    // Fetch tenant settings for dynamic logo + company name
+    const Settings = getSettings(req);
+    const settings = await Settings.findOne();
+    const companyName = settings?.companyName || req.tenant?.name || "CRM Software";
+
+    // Embed logo via CID attachment — base64 data URIs are blocked by Gmail
+    let logoBlock = "";
+    const logoRelPath = settings?.invoiceLogo || settings?.logo;
+    let logoCIDAttachment = null;
+    if (logoRelPath) {
+      const logoPath = path.join(process.cwd(), logoRelPath);
+      if (fs.existsSync(logoPath)) {
+        logoCIDAttachment = { filename: "logo", path: logoPath, cid: "bulk-email-logo", contentDisposition: "inline" };
+        logoBlock = `<div style="text-align:center; margin-bottom:25px;"><img src="cid:bulk-email-logo" alt="${companyName}" style="max-height:80px; width:auto;" /></div>`;
+      }
+    }
+
     //  Prepare attachments from multer
     const files = req.files || [];
 
@@ -112,14 +132,12 @@ sendBulkEmail : async (req, res) => {
       path: file.path,
     }));
 
-    //  Send email to each recipient
+    if (logoCIDAttachment) attachments.push(logoCIDAttachment);
     const finalHTML = `
       <div style="background-color:#f4f6f8; padding:40px 0;">
         <div style="max-width:600px; margin:auto; background:white; padding:30px; border-radius:8px;">
 
-          <div style="text-align:center; margin-bottom:25px;">
-            <img src="${logoUrl}" alt="TZI Logo" width="180" />
-          </div>
+          ${logoBlock}
 
           <div style="font-size:14px; line-height:1.6; color:#333;">
             ${content}
@@ -128,7 +146,7 @@ sendBulkEmail : async (req, res) => {
           <hr style="margin:30px 0; border:none; border-top:1px solid #eee;" />
 
           <div style="text-align:center; font-size:12px; color:#888;">
-            © ${new Date().getFullYear()} TZI. All rights reserved.
+            © ${new Date().getFullYear()} ${companyName}. All rights reserved.
           </div>
 
         </div>

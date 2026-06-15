@@ -1,6 +1,8 @@
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
+import path from "path";
+import fs from "fs";
 import { getTenantModels } from "../models/tenant/index.js";
 import {
   deleteNotificationsByEntity,
@@ -13,6 +15,7 @@ import {
 import ProposalLegacy     from "../models/proposal.model.js";
 import NotificationLegacy from "../models/notification.model.js";
 import DealLegacy         from "../models/deals.model.js";
+import SettingsLegacy     from "../models/Settings.js";
 
 dotenv.config();
 
@@ -20,6 +23,9 @@ const getModels = (req) =>
   req.tenantDB
     ? getTenantModels(req.tenantDB)
     : { Proposal: ProposalLegacy, Notification: NotificationLegacy, Deal: DealLegacy };
+
+const getSettings = (req) =>
+  req.tenantDB ? getTenantModels(req.tenantDB).Settings : SettingsLegacy;
 
 export default {
   sendProposal: async (req, res) => {
@@ -60,9 +66,39 @@ export default {
       res.json({ message: status === "draft" ? "Proposal saved as draft successfully!" : "Proposal saved successfully! Email is sending in background.", proposal });
 
       if (status === "sent" && recipients.length > 0) {
-        const transporter = nodemailer.createTransport({ service: "gmail", host: "smtp.gmail.com", port: 587, secure: false, auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS } });
+        const Settings = getSettings(req);
+        const settings = await Settings.findOne();
+        const companyName = settings?.companyName || req.tenant?.name || "CRM Software";
+
+        // Embed logo via CID attachment — base64 data URIs are blocked by Gmail
+        let logoBlock = "";
         const emailAttachments = (req.files || []).map(file => ({ filename: file.originalname, path: file.path }));
-        await transporter.sendMail({ from: `"Your Company" <${process.env.EMAIL_USER}>`, to: recipients.join(","), cc: cc || undefined, subject: `Proposal: ${title}`, html: content, attachments: emailAttachments });
+        const logoRelPath = settings?.invoiceLogo || settings?.logo;
+        if (logoRelPath) {
+          const logoPath = path.join(process.cwd(), logoRelPath);
+          if (fs.existsSync(logoPath)) {
+            emailAttachments.push({ filename: "logo", path: logoPath, cid: "proposal-logo", contentDisposition: "inline" });
+            logoBlock = `<div style="text-align:center; margin-bottom:25px;"><img src="cid:proposal-logo" alt="${companyName}" style="max-height:80px; width:auto;" /></div>`;
+          }
+        }
+
+        const emailHTML = `
+          <div style="background-color:#f4f6f8; padding:40px 0;">
+            <div style="max-width:600px; margin:auto; background:white; padding:30px; border-radius:8px;">
+              ${logoBlock}
+              <div style="font-size:14px; line-height:1.6; color:#333;">
+                ${content}
+              </div>
+              <hr style="margin:30px 0; border:none; border-top:1px solid #eee;" />
+              <div style="text-align:center; font-size:12px; color:#888;">
+                © ${new Date().getFullYear()} ${companyName}. All rights reserved.
+              </div>
+            </div>
+          </div>
+        `;
+
+        const transporter = nodemailer.createTransport({ service: "gmail", host: "smtp.gmail.com", port: 587, secure: false, auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS } });
+        await transporter.sendMail({ from: `"${companyName}" <${process.env.EMAIL_USER}>`, to: recipients.join(","), cc: cc || undefined, subject: `Proposal: ${title}`, html: emailHTML, attachments: emailAttachments });
         if (process.env.OWNER_EMAIL) await transporter.sendMail({ from: `"CRM Notification" <${process.env.EMAIL_USER}>`, to: process.env.OWNER_EMAIL, subject: `Proposal Sent: ${title}`, text: `A new proposal has been sent to ${recipients.join(",")}.` });
       }
     } catch (error) {
