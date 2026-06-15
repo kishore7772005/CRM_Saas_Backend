@@ -43,4 +43,25 @@ router.put(
   updateCompanyName
 );
 
+/**
+ * UPDATE invoice logo
+ */
+router.post(
+  "/invoice-logo",
+  protect,
+  adminCreateOnly,
+  uploadCompanyLogo.single("logo"),indexControllers.settingsController.
+  updateInvoiceLogo
+);
+
+/**
+ * UPDATE invoice email settings
+ */
+router.put(
+  "/invoice-email-settings",
+  protect,
+  adminCreateOnly,indexControllers.settingsController.
+  updateInvoiceEmailSettings
+);
+
 export default router;

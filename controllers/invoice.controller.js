@@ -7,6 +7,7 @@ import nodemailer from "nodemailer";
 import { getExchangeRate } from "../services/currencyService.js";
 import { getTenantModels } from "../models/tenant/index.js";
 import InvoiceLegacy from "../models/invoice.model.js";
+import SettingsLegacy from "../models/Settings.js";
 
 const getInvoice = (req) => req.tenantDB ? getTenantModels(req.tenantDB).Invoice : InvoiceLegacy;
 
@@ -170,10 +171,26 @@ export default {
         .populate("items.deal", "dealName value stage email companyName address country phoneNumber");
       if (!invoice) return res.status(404).json({ error: "Invoice not found" });
 
+      const Settings = req.tenantDB ? getTenantModels(req.tenantDB).Settings : SettingsLegacy;
+      const settings = await Settings.findOne();
+      
+      let logoDataURI = "";
+      if (settings) {
+        const logoRelativePath = settings.invoiceLogo || settings.logo;
+        if (logoRelativePath) {
+          const logoPath = path.join(process.cwd(), logoRelativePath);
+          if (fs.existsSync(logoPath)) {
+            const ext = path.extname(logoPath).substring(1);
+            const base64 = fs.readFileSync(logoPath, { encoding: 'base64' });
+            logoDataURI = `data:image/${ext};base64,${base64}`;
+          }
+        }
+      }
+
       const templatePath = path.join(process.cwd(), "views", "invoiceTemplate.ejs");
       if (!fs.existsSync(templatePath)) return res.status(500).json({ error: "Template file not found" });
 
-      const templateData = await ejs.renderFile(templatePath, { invoice }, { async: true });
+      const templateData = await ejs.renderFile(templatePath, { invoice, logoDataURI }, { async: true });
       const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox","--disable-setuid-sandbox","--disable-gpu","--disable-dev-shm-usage"] });
       const page = await browser.newPage();
       await page.setContent(templateData, { waitUntil: "networkidle0" });
@@ -193,20 +210,38 @@ export default {
   sendInvoiceEmail: async (req, res) => {
     try {
       const { id } = req.params;
+      const { fromEmail, toEmail } = req.body;
       if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid invoice ID" });
       const Invoice = getInvoice(req);
       const invoice = await Invoice.findById(id).populate("items.deal", "dealName email value stage");
       if (!invoice) return res.status(404).json({ error: "Invoice not found" });
 
       const clientEmails = invoice.items.map(i => i.deal?.email).filter(Boolean);
-      if (clientEmails.length === 0) return res.status(400).json({ error: "No client emails found in invoice deals" });
+      const targetEmails = toEmail ? [toEmail] : clientEmails;
+      if (targetEmails.length === 0) return res.status(400).json({ error: "No client emails found in invoice deals" });
 
       res.status(200).json({ message: "Invoice email is being sent!" });
       setImmediate(async () => {
         try {
+          const Settings = req.tenantDB ? getTenantModels(req.tenantDB).Settings : SettingsLegacy;
+          const settings = await Settings.findOne();
+          
+          let logoDataURI = "";
+          if (settings) {
+            const logoRelativePath = settings.invoiceLogo || settings.logo;
+            if (logoRelativePath) {
+              const logoPath = path.join(process.cwd(), logoRelativePath);
+              if (fs.existsSync(logoPath)) {
+                const ext = path.extname(logoPath).substring(1);
+                const base64 = fs.readFileSync(logoPath, { encoding: 'base64' });
+                logoDataURI = `data:image/${ext};base64,${base64}`;
+              }
+            }
+          }
+
           const templatePath = path.join(process.cwd(), "views", "invoiceTemplate.ejs");
           if (!fs.existsSync(templatePath)) return;
-          const templateData = await ejs.renderFile(templatePath, { invoice }, { async: true });
+          const templateData = await ejs.renderFile(templatePath, { invoice, logoDataURI }, { async: true });
           const browser = await getBrowser();
           const page = await browser.newPage();
           await page.setContent(templateData, { waitUntil: "networkidle0" });
@@ -214,9 +249,13 @@ export default {
           await page.close();
 
           const transporter = nodemailer.createTransport({ service: "gmail", auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS } });
-          for (const email of clientEmails) {
+          
+          const finalFromEmail = fromEmail || settings?.defaultFromEmail || req.tenant?.adminEmail || process.env.EMAIL_USER;
+          const fromName = settings?.companyName || req.tenant?.name || "CRM Software";
+
+          for (const email of targetEmails) {
             await transporter.sendMail({
-              from: `"TechZarInfo Software Solution" <${process.env.EMAIL_USER}>`,
+              from: `"${fromName}" <${finalFromEmail}>`,
               to: email,
               subject: `Invoice #${invoice.invoicenumber || invoice._id}`,
               text: `Hello,\n\nPlease find attached your invoice #${invoice.invoicenumber || invoice._id}.\n\nIncluded deals:\n${invoice.items.map(i => `- ${i.deal.dealName}`).join("\n")}\n\nThank you!`,
