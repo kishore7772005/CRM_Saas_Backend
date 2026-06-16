@@ -77,7 +77,8 @@ export default {
         if (logoRelPath) {
           const logoPath = path.join(process.cwd(), logoRelPath);
           if (fs.existsSync(logoPath)) {
-            emailAttachments.push({ filename: "logo", path: logoPath, cid: "proposal-logo", contentDisposition: "inline" });
+            const logoExt = path.extname(logoPath) || ".png";
+            emailAttachments.push({ filename: `logo${logoExt}`, path: logoPath, cid: "proposal-logo", contentDisposition: "inline" });
             logoBlock = `<div style="text-align:center; margin-bottom:25px;"><img src="cid:proposal-logo" alt="${companyName}" style="max-height:80px; width:auto;" /></div>`;
           }
         }

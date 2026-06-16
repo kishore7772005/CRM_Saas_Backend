@@ -119,7 +119,8 @@ sendBulkEmail : async (req, res) => {
     if (logoRelPath) {
       const logoPath = path.join(process.cwd(), logoRelPath);
       if (fs.existsSync(logoPath)) {
-        logoCIDAttachment = { filename: "logo", path: logoPath, cid: "bulk-email-logo", contentDisposition: "inline" };
+        const logoExt = path.extname(logoPath) || ".png";
+        logoCIDAttachment = { filename: `logo${logoExt}`, path: logoPath, cid: "bulk-email-logo", contentDisposition: "inline" };
         logoBlock = `<div style="text-align:center; margin-bottom:25px;"><img src="cid:bulk-email-logo" alt="${companyName}" style="max-height:80px; width:auto;" /></div>`;
       }
     }

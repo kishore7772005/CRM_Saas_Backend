@@ -250,7 +250,7 @@ export default {
 
           const transporter = nodemailer.createTransport({ service: "gmail", auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS } });
           
-          const finalFromEmail = fromEmail || settings?.defaultFromEmail || req.tenant?.adminEmail || process.env.EMAIL_USER;
+          const finalFromEmail = fromEmail || req.tenant?.adminEmail || process.env.EMAIL_USER;
           const fromName = settings?.companyName || req.tenant?.name || "CRM Software";
 
           for (const email of targetEmails) {

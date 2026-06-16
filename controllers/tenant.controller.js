@@ -8,6 +8,7 @@ import SubscriptionPlan from "../models/master/SubscriptionPlan.model.js";
 import { getTenantDB, dropTenantDB } from "../config/tenantDB.js";
 import { getTenantModels } from "../models/tenant/index.js";
 import sendEmail from "../utils/sendEmail.js";
+import defaultEmailTemplates from "../seeder/data/defaultEmailTemplates.js";
 
 dotenv.config();
 
@@ -143,7 +144,7 @@ export const createTenant = async (req, res) => {
 
     try {
       const tenantDB = await getTenantDB(dbName);
-      const { Role, User } = getTenantModels(tenantDB);
+      const { Role, User, EmailTemplate } = getTenantModels(tenantDB);
 
       const adminRole = await Role.create({
         name: "Admin",
@@ -204,6 +205,8 @@ export const createTenant = async (req, res) => {
         dateOfBirth: new Date("1990-01-01"),
         status:      "Active",
       });
+
+      await EmailTemplate.insertMany(defaultEmailTemplates);
     } catch (setupErr) {
       // Setup failed — remove the orphaned tenant record so the slug can be retried
       await Tenant.findByIdAndDelete(tenant._id);
@@ -349,7 +352,7 @@ export const resetTenantDB = async (tenant, plainPassword) => {
 
   // 2. Re-create default tables and users
   const tenantDB = await getTenantDB(tenant.dbName);
-  const { Role, User } = getTenantModels(tenantDB);
+  const { Role, User, EmailTemplate } = getTenantModels(tenantDB);
 
   const adminRole = await Role.create({
     name: "Admin",
@@ -408,6 +411,8 @@ export const resetTenantDB = async (tenant, plainPassword) => {
     dateOfBirth: new Date("1990-01-01"),
     status:      "Active",
   });
+
+  await EmailTemplate.insertMany(defaultEmailTemplates);
 };
 
 export const createUpgradeRequest = async (req, res) => {

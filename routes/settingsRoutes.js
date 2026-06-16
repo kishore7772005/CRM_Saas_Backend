@@ -54,14 +54,4 @@ router.post(
   updateInvoiceLogo
 );
 
-/**
- * UPDATE invoice email settings
- */
-router.put(
-  "/invoice-email-settings",
-  protect,
-  adminCreateOnly,indexControllers.settingsController.
-  updateInvoiceEmailSettings
-);
-
 export default router;

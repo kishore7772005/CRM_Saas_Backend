@@ -86,21 +86,4 @@ export default {
     }
   },
 
-  updateInvoiceEmailSettings: async (req, res) => {
-    try {
-      const { defaultFromEmail, defaultToEmail } = req.body;
-      const Settings = getSettings(req);
-      let settings = await Settings.findOne();
-      if (!settings) settings = new Settings({ defaultFromEmail, defaultToEmail });
-      else {
-        settings.defaultFromEmail = defaultFromEmail !== undefined ? defaultFromEmail : settings.defaultFromEmail;
-        settings.defaultToEmail = defaultToEmail !== undefined ? defaultToEmail : settings.defaultToEmail;
-      }
-      await settings.save();
-      res.status(200).json({ success: true, message: "Invoice email settings updated successfully", data: settings });
-    } catch (error) {
-      console.error("Update Invoice Email Settings Error:", error);
-      res.status(500).json({ message: "Server Error" });
-    }
-  },
 };
