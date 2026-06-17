@@ -32,6 +32,15 @@ const leadSchema = new mongoose.Schema(
     lastReminderAt:  { type: Date, default: null },
 
     notes: { type: String },
+
+    // Meta (Facebook / Instagram) lead capture metadata
+    meta: {
+      leadgenId: { type: String, default: null, index: true },  // Facebook leadgen_id (for dedup)
+      pageId:    { type: String, default: null },
+      formId:    { type: String, default: null },
+      rawFields: { type: Map, of: String, default: {} },        // all form fields as-is
+    },
+
     attachments: [
       {
         name:       { type: String, required: true },

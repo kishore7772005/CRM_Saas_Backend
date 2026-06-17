@@ -20,7 +20,8 @@ import massEmailSchema      from "../schemas/massEmailSchema.js";
 import lostDealReasonSchema from "../schemas/lostDealReasonSchema.js";
 import pricingRiskSchema    from "../schemas/pricingRiskSchema.js";
 import aiChatSchema        from "../schemas/aiChatSchema.js";
-import botHistorySchema    from "../schemas/botHistorySchema.js";
+import botHistorySchema         from "../schemas/botHistorySchema.js";
+import metaIntegrationSchema    from "../schemas/metaIntegrationSchema.js";
 
 const MODEL_MAP = [
   ["User",             userSchema],
@@ -46,6 +47,7 @@ const MODEL_MAP = [
   ["PricingRisk",      pricingRiskSchema],
   ["AiChat",           aiChatSchema],
   ["BotHistory",       botHistorySchema],
+  ["MetaIntegration",  metaIntegrationSchema],
 ];
 
 /**
@@ -88,7 +90,8 @@ export function getTenantModels(conn) {
     MassEmail:       conn.model("MassEmail"),
     LostDealReason:  conn.model("LostDealReason"),
     PricingRisk:     conn.model("PricingRisk"),
-    AiChat:          conn.model("AiChat"),
-    BotHistory:      conn.model("BotHistory"),
+    AiChat:           conn.model("AiChat"),
+    BotHistory:       conn.model("BotHistory"),
+    MetaIntegration:  conn.model("MetaIntegration"),
   };
 }

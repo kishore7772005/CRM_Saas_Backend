@@ -186,6 +186,17 @@ export default {
 
       const patch = { ...req.body };
 
+      // Sanitize ObjectId fields — empty string crashes Mongoose cast
+      if ("assignTo" in patch && (!patch.assignTo || patch.assignTo === "")) {
+        patch.assignTo = null;
+      }
+      if ("companyId" in patch && (!patch.companyId || patch.companyId === "")) {
+        patch.companyId = null;
+      }
+      if ("clientType" in patch && (!patch.clientType || patch.clientType === "")) {
+        patch.clientType = null;
+      }
+
       let existingAttachments = [];
       if (req.body.existingAttachments) {
         try { existingAttachments = JSON.parse(req.body.existingAttachments); } catch {}

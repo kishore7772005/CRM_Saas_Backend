@@ -10,6 +10,9 @@ import helmet from "helmet";
 import mongoSanitize from "express-mongo-sanitize";
 import rateLimit from "express-rate-limit";
 
+// Meta webhook (public — must be before auth middleware)
+import metaWebhookRoutes        from "./routes/metaWebhook.routes.js";
+
 // Multi-tenant SaaS imports
 import superAdminRoutes         from "./routes/superAdmin.js";
 import subscriptionPlanRoutes   from "./routes/superadmin/subscriptionPlan.routes.js";
@@ -89,7 +92,17 @@ app.options("*", cors(corsOptions));
 // ─────────────────────────────────────────────
 // Body parsers
 // ─────────────────────────────────────────────
-app.use(express.json());
+// For Meta webhook signature verification we need the raw body on /webhooks/meta
+// All other routes use normal JSON parsing
+app.use((req, res, next) => {
+  if (req.path.startsWith("/webhooks/meta")) {
+    express.json({
+      verify: (req, _res, buf) => { req.rawBody = buf; },
+    })(req, res, next);
+  } else {
+    express.json()(req, res, next);
+  }
+});
 app.use(express.urlencoded({ extended: true }));
 
 // ─────────────────────────────────────────────
@@ -127,6 +140,11 @@ app.use(
   })
 );
 app.use(express.static(path.join(__dirname, "public")));
+
+// ─────────────────────────────────────────────
+// Public Webhook Routes (no auth — Meta calls these directly)
+// ─────────────────────────────────────────────
+app.use("/webhooks/meta", metaWebhookRoutes);
 
 // ─────────────────────────────────────────────
 // Multi-tenant SaaS Routes  (mounted BEFORE existing /api routes)
