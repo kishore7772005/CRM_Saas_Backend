@@ -53,10 +53,18 @@ const fetchLeadDetails = async (leadgenId, pageAccessToken) => {
   const { data } = await axios.get(`${GRAPH_API}/${leadgenId}`, {
     params: {
       access_token: pageAccessToken,
-      fields:       "field_data,created_time,ad_name,form_id",
+      fields:       "field_data,created_time,ad_name,form_id,platform",
     },
   });
   return data;
+};
+
+/** Determine lead source from platform field — "Instagram" or "Facebook" */
+const resolveSource = (platform, integration) => {
+  if (platform === "Instagram") return "Instagram";
+  // Default to Facebook — real Instagram leads always have platform="Instagram"
+  // Testing Tool and old leads without platform field are Facebook
+  return "Facebook";
 };
 
 // ─── Controllers ─────────────────────────────────────────────────────────────
@@ -77,6 +85,8 @@ export default {
         "leads_retrieval",
         "pages_read_engagement",
         "pages_manage_ads",
+        "pages_manage_metadata",
+        "business_management",
       ].join(",");
 
       // state carries tenantSlug so frontend can send it back in callback
@@ -258,7 +268,7 @@ export default {
               const leadsRes = await axios.get(`${GRAPH_API}/${form.id}/leads`, {
                 params: {
                   access_token: integration.pageAccessToken,
-                  fields: "id,created_time,field_data,ad_id,form_id",
+                  fields: "id,created_time,field_data,ad_id,form_id,platform",
                   limit: 100,
                 },
               });
@@ -287,7 +297,7 @@ export default {
                   email,
                   phoneNumber: phone,
                   companyName: company,
-                  source:      integration.instagramAccountId ? "Instagram" : "Facebook",
+                  source:      resolveSource(leadData.platform, integration),
                   status:      "Cold",
                   notes:       `Synced from Facebook Lead Form: ${form.name}`,
                   meta: {
@@ -341,10 +351,12 @@ export default {
         return res.status(400).json({ success: false, message: "No active Facebook Page connected. Go to Integrations and connect a page first." });
       }
 
-      const name    = req.body.name    || "Test Facebook Lead";
-      const email   = req.body.email   || "testlead@facebook.com";
-      const phone   = req.body.phone   || "+1 555-123-4567";
-      const company = req.body.company || integration.pageName || "Test Company";
+      const name     = req.body.name     || "Test Facebook Lead";
+      const email    = req.body.email    || "testlead@facebook.com";
+      const phone    = req.body.phone    || "+1 555-123-4567";
+      const company  = req.body.company  || integration.pageName || "Test Company";
+      const platform = req.body.platform || "Facebook"; // "Facebook" or "Instagram"
+      const source   = platform === "Instagram" ? "Instagram" : "Facebook";
 
       // Check for existing test lead with same email to avoid duplicates
       const existing = await Lead.findOne({ email, source: { $in: ["Facebook", "Instagram"] } });
@@ -357,9 +369,9 @@ export default {
         email,
         phoneNumber: phone,
         companyName: company,
-        source:      integration.instagramAccountId ? "Instagram" : "Facebook",
+        source,
         status:      "Cold",
-        notes:       `[TEST] Simulated Facebook lead from page: ${integration.pageName}`,
+        notes:       `[TEST] Simulated ${source} lead from page: ${integration.pageName}`,
         meta: {
           leadgenId: `test_${Date.now()}`,
           pageId:    integration.facebookPageId,
@@ -508,9 +520,9 @@ const processMetaLead = async ({ leadgen_id, page_id, form_id }) => {
         email,
         phoneNumber: phone,
         companyName: company,
-        source:      integration.instagramAccountId ? "Instagram" : "Facebook",
+        source:      resolveSource(leadData.platform, integration),
         status:      "Cold",
-        notes:       `Auto-captured from ${integration.instagramAccountId ? "Instagram" : "Facebook"} Lead Form\nForm ID: ${form_id}\nPage: ${integration.pageName}`,
+        notes:       `Auto-captured from ${resolveSource(leadData.platform, integration)} Lead Form\nForm ID: ${form_id}\nPage: ${integration.pageName}`,
         meta: {
           leadgenId: leadgen_id,
           pageId:    page_id,
