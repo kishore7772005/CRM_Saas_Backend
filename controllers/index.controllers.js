@@ -8,7 +8,7 @@ import dealsController from "./deals.controller.js";
 import adminDashboardController from "./adminDashboard.controller.js";
 
 import googleAuthController from './googleAuth.controller.js';
-import * as whatsappController from './whatsapp.controller.js';
+
 import salesReportsController from "./salesReports.controller.js";
 import aiController from "./ai.controller.js";
 import botController from "./bot.controller.js";
@@ -34,7 +34,7 @@ export default {
   adminDashboardController,
   salesReportsController,
   googleAuthController,
-  whatsappController,
+
   
 
   aiController,

@@ -29,7 +29,7 @@ import emailTemplateRoutes from "./emailTemplate.routes.js";
 import lostDealRoutes      from "./lostDealRoutes.js";
 import settingsRoutes      from "./settingsRoutes.js";
 import emailRoutes         from "./email.routes.js";
-import whatsappRoutes      from "./whatsapp.routes.js";
+
 import fileRoutes          from "./files.routes.js";
 import metaRoutes          from "./meta.routes.js";
 
@@ -58,7 +58,7 @@ router.use("/lost-deals",      lostDealRoutes);
 router.use("/deals",           lostDealRoutes);
 router.use("/settings",        settingsRoutes);
 router.use("/email",           emailRoutes);
-router.use("/whatsapp",        whatsappRoutes);
+
 router.use("/files",           fileRoutes);
 router.use("/meta",            metaRoutes);
 

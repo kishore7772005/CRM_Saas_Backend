@@ -23,7 +23,7 @@ import { resolveTenant }        from "./middlewares/resolveTenant.js";
 import { startFollowUpCron } from "./controllers/followups.cron.js";
 import gmailRoutes from "./routes/gmailRoutes.js";
 import googleAuthRoutes from "./routes/googleAuthRoutes.js";
-import whatsappRoutes from "./routes/whatsapp.routes.js";
+
 import salesRoutes from "./routes/salesReports.routes.js";
 import connectDB from "./config/db.js";
 import routes from "./routes/index.routes.js";
@@ -161,7 +161,7 @@ app.use("/api/files", fileRoutes);
 app.use("/api/sales", salesRoutes);
 app.use("/api/gmail", gmailRoutes);
 app.use("/api/google-auth", googleAuthRoutes);
-app.use("/api/whatsapp", whatsappRoutes);
+
 app.use("/api/deals", lostDealRoutes);
 app.use("/api/cltv", clientLTVRoutes);
 app.use("/api/calllogs", callLogRoutes);
@@ -273,8 +273,7 @@ const startServer = async () => {
     
     server.listen(PORT, () => {
       console.log(` Server running on port ${PORT}`);
-      console.log(` WhatsApp webhook: POST http://localhost:${PORT}/api/whatsapp/webhook`);
-      console.log(` WhatsApp status:  POST http://localhost:${PORT}/api/whatsapp/status`);
+
       console.log(` Allowed origins: ${allowedOrigins.join(", ")}`);
     });
   } catch (error) {
