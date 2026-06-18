@@ -11,13 +11,13 @@ import mongoSanitize from "express-mongo-sanitize";
 import rateLimit from "express-rate-limit";
 
 // Meta webhook (public — must be before auth middleware)
-import metaWebhookRoutes        from "./routes/metaWebhook.routes.js";
+import metaWebhookRoutes from "./routes/metaWebhook.routes.js";
 
 // Multi-tenant SaaS imports
-import superAdminRoutes         from "./routes/superAdmin.js";
-import subscriptionPlanRoutes   from "./routes/superadmin/subscriptionPlan.routes.js";
-import tenantApiRouter          from "./routes/tenantRouter.js";
-import { resolveTenant }        from "./middlewares/resolveTenant.js";
+import superAdminRoutes from "./routes/superAdmin.js";
+import subscriptionPlanRoutes from "./routes/superadmin/subscriptionPlan.routes.js";
+import tenantApiRouter from "./routes/tenantRouter.js";
+import { resolveTenant } from "./middlewares/resolveTenant.js";
 
 // Routes
 import { startFollowUpCron } from "./controllers/followups.cron.js";
@@ -161,7 +161,6 @@ app.use("/api/files", fileRoutes);
 app.use("/api/sales", salesRoutes);
 app.use("/api/gmail", gmailRoutes);
 app.use("/api/google-auth", googleAuthRoutes);
-
 app.use("/api/deals", lostDealRoutes);
 app.use("/api/cltv", clientLTVRoutes);
 app.use("/api/calllogs", callLogRoutes);
@@ -220,11 +219,11 @@ app.get("/api/files/download", authenticateToken, (req, res) => {
 // Health check
 // ─────────────────────────────────────────────
 app.get("/api/health", (_req, res) => {
-  res.json({ 
-    status: "OK", 
-    timestamp: new Date().toISOString(), 
-    service: "CRM Server", 
-    allowedOrigins 
+  res.json({
+    status: "OK",
+    timestamp: new Date().toISOString(),
+    service: "CRM Server",
+    allowedOrigins
   });
 });
 
@@ -270,10 +269,11 @@ const startServer = async () => {
   try {
     await connectDB();
     console.log(" MongoDB connected");
-    
+
     server.listen(PORT, () => {
       console.log(` Server running on port ${PORT}`);
-
+      console.log(` WhatsApp webhook: POST http://localhost:${PORT}/api/whatsapp/webhook`);
+      console.log(` WhatsApp status:  POST http://localhost:${PORT}/api/whatsapp/status`);
       console.log(` Allowed origins: ${allowedOrigins.join(", ")}`);
     });
   } catch (error) {
