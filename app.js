@@ -12,6 +12,9 @@ import rateLimit from "express-rate-limit";
 
 // Meta webhook (public — must be before auth middleware)
 import metaWebhookRoutes        from "./routes/metaWebhook.routes.js";
+// LinkedIn webhook (public — must be before auth middleware)
+import linkedinWebhookRoutes    from "./routes/linkedinWebhook.routes.js";
+
 
 // Multi-tenant SaaS imports
 import superAdminRoutes         from "./routes/superAdmin.js";
@@ -95,7 +98,7 @@ app.options("*", cors(corsOptions));
 // For Meta webhook signature verification we need the raw body on /webhooks/meta
 // All other routes use normal JSON parsing
 app.use((req, res, next) => {
-  if (req.path.startsWith("/webhooks/meta")) {
+  if (req.path.startsWith("/webhooks/meta") || req.path.startsWith("/webhooks/linkedin")) {
     express.json({
       verify: (req, _res, buf) => { req.rawBody = buf; },
     })(req, res, next);
@@ -145,6 +148,8 @@ app.use(express.static(path.join(__dirname, "public")));
 // Public Webhook Routes (no auth — Meta calls these directly)
 // ─────────────────────────────────────────────
 app.use("/webhooks/meta", metaWebhookRoutes);
+app.use("/webhooks/linkedin", linkedinWebhookRoutes);
+
 
 // ─────────────────────────────────────────────
 // Multi-tenant SaaS Routes  (mounted BEFORE existing /api routes)

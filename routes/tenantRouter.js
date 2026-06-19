@@ -32,6 +32,8 @@ import emailRoutes         from "./email.routes.js";
 import whatsappRoutes      from "./whatsapp.routes.js";
 import fileRoutes          from "./files.routes.js";
 import metaRoutes          from "./meta.routes.js";
+import linkedinRoutes      from "./linkedin.routes.js";
+
 
 const router = express.Router();
 
@@ -61,5 +63,7 @@ router.use("/email",           emailRoutes);
 router.use("/whatsapp",        whatsappRoutes);
 router.use("/files",           fileRoutes);
 router.use("/meta",            metaRoutes);
+router.use("/linkedin",        linkedinRoutes);
+
 
 export default router;
