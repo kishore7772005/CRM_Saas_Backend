@@ -167,7 +167,7 @@ async function initiateCall({ contactId, contactType, userId, userRole, res, Lea
     contactId, contactType, matchCount: 1, sessionId,
   });
 
-  const baseUrl = process.env.BACKEND_URL || "http://localhost:5000";
+  const baseUrl = process.env.BACKEND_URL;
 
   return res.json({
     success:    true,

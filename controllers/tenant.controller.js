@@ -214,7 +214,7 @@ export const createTenant = async (req, res) => {
       return res.status(500).json({ error: "Tenant setup failed: " + setupErr.message });
     }
 
-    const loginUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/${slug}/login`;
+    const loginUrl = `${process.env.FRONTEND_URL}/${slug}/login`;
 
     // Send welcome email — failure does not block the response
     sendEmail({
@@ -536,7 +536,7 @@ export const approveUpgradeRequest = async (req, res) => {
     await request.save();
 
     // 5. Send Upgrade activation email with generated credentials
-    const loginUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/${tenant.slug}/login`;
+    const loginUrl = `${process.env.FRONTEND_URL}/${tenant.slug}/login`;
     sendEmail({
       to: tenant.adminEmail,
       subject: `Your CRM Workspace Plan Has Been Upgraded — New Credentials`,

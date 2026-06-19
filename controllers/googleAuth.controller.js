@@ -35,10 +35,10 @@ const googleAuthController = {
       const host = req.get("host");
       let frontendUrl, redirectUri;
       if (host.includes("localhost") || host.includes("127.0.0.1")) {
-        frontendUrl = process.env.FRONTEND_URL_LOCAL || "http://localhost:5173";
+        frontendUrl = process.env.FRONTEND_URL_LOCAL;
         redirectUri = process.env.GMAIL_REDIRECT_URI;
       } else {
-        frontendUrl = process.env.FRONTEND_URL_LIVE || "https://sales.stagingzar.com";
+        frontendUrl = process.env.FRONTEND_URL_LIVE;
         redirectUri = process.env.GMAIL_LIVE_REDIRECT_URI;
       }
       oauth2Client.redirectUri = redirectUri;
@@ -53,12 +53,12 @@ const googleAuthController = {
 
       await UserLegacy.findByIdAndUpdate(state, {
         googleAuth: {
-          accessToken:  tokens.access_token,
+          accessToken: tokens.access_token,
           refreshToken: tokens.refresh_token || user.googleAuth?.refreshToken,
-          expiryDate:   tokens.expiry_date,
-          scope:        tokens.scope,
-          connected:    true,
-          connectedAt:  new Date(),
+          expiryDate: tokens.expiry_date,
+          scope: tokens.scope,
+          connected: true,
+          connectedAt: new Date(),
         },
       });
       res.redirect(`${frontendUrl}/google-auth?success=true`);
@@ -66,8 +66,8 @@ const googleAuthController = {
       console.error("OAuth callback error:", err);
       const host = req.get("host");
       const frontendUrl = host.includes("localhost") || host.includes("127.0.0.1")
-        ? (process.env.FRONTEND_URL_LOCAL || "http://localhost:5173")
-        : (process.env.FRONTEND_URL_LIVE || "https://crm.stagingzar.com");
+        ? (process.env.FRONTEND_URL_LOCAL)
+        : (process.env.FRONTEND_URL_LIVE);
       res.redirect(`${frontendUrl}/google-auth?error=failed`);
     }
   },
@@ -84,7 +84,7 @@ const googleAuthController = {
         const { credentials } = await oauth2Client.refreshAccessToken();
         await User.findByIdAndUpdate(req.user.id, {
           "googleAuth.accessToken": credentials.access_token,
-          "googleAuth.expiryDate":  credentials.expiry_date,
+          "googleAuth.expiryDate": credentials.expiry_date,
         });
         return res.json({ success: true, connected: true });
       } catch (err) {
