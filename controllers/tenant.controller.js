@@ -214,7 +214,7 @@ export const createTenant = async (req, res) => {
       return res.status(500).json({ error: "Tenant setup failed: " + setupErr.message });
     }
 
-    const loginUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/${slug}/login`;
+    const loginUrl = `${process.env.FRONTEND_URL}/${slug}/login`;
 
     // Send welcome email — failure does not block the response
     sendEmail({
@@ -483,9 +483,9 @@ function upgradeEmailHtml({ adminName, planName, wantedUsers, loginDays, passwor
       <li><strong>Validity Days:</strong> ${loginDays} Days</li>
     </ul>
     <div style="background-color: #f0f7ff; border: 1px solid #d0e5ff; padding: 15px; border-radius: 8px; margin: 20px 0;">
-      <h5 style="margin: 0 0 10px 0; color: #008ecc;">Clean Database Initialized</h5>
+      <h5 style="margin: 0 0 10px 0; color: #008ecc;">Plan Upgraded Successfully</h5>
       <p style="margin: 0; font-size: 13px; color: #555;">
-        As requested for this plan upgrade, your database was cleanly reset. Stale data has been wiped. Here are your temporary administrator credentials:
+        Your plan has been upgraded. All your existing data has been preserved. Here are your new administrator credentials:
       </p>
       <p style="margin: 10px 0 0 0; font-family: monospace; font-size: 15px;">
         <strong>Password:</strong> <span style="background: #fff; padding: 2px 8px; border: 1px dashed #008ecc; font-weight: bold; color: #008ecc;">${password}</span>
@@ -520,15 +520,22 @@ export const approveUpgradeRequest = async (req, res) => {
     const plainPassword = generatePassword();
     console.log(`[PLAN UPGRADE] Generated password for tenant "${tenant.slug}": ${plainPassword}`);
 
-    // 2. Refresh Tenant DB (destructive reset)
-    await resetTenantDB(tenant, plainPassword);
+    // 2. Update admin password and invalidate current token — existing data is preserved
+    const tenantDB = await getTenantDB(tenant.dbName);
+    const { User } = getTenantModels(tenantDB);
+    const adminUser = await User.findOne({ email: tenant.adminEmail.toLowerCase() });
+    if (adminUser) {
+      adminUser.password = plainPassword;
+      adminUser.tokenVersion = (adminUser.tokenVersion || 0) + 1;
+      await adminUser.save();
+    }
 
     // 3. Update Tenant fields
     tenant.plan_id = plan._id;
     tenant.plan_status = "active";
     tenant.plan_start_date = new Date();
     tenant.plan_end_date = new Date(Date.now() + request.login_days * 24 * 60 * 60 * 1000);
-    tenant.isDbRefreshed = true; // flag to trigger dashboard notification on client
+    tenant.isDbRefreshed = true;
     await tenant.save();
 
     // 4. Update request status
@@ -536,7 +543,7 @@ export const approveUpgradeRequest = async (req, res) => {
     await request.save();
 
     // 5. Send Upgrade activation email with generated credentials
-    const loginUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/${tenant.slug}/login`;
+    const loginUrl = `${process.env.FRONTEND_URL}/${tenant.slug}/login`;
     sendEmail({
       to: tenant.adminEmail,
       subject: `Your CRM Workspace Plan Has Been Upgraded — New Credentials`,
@@ -550,7 +557,7 @@ export const approveUpgradeRequest = async (req, res) => {
       }),
     }).catch((emailErr) => console.error("Upgrade activation email failed:", emailErr.message));
 
-    res.json({ success: true, message: "Upgrade request approved, database reset successfully." });
+    res.json({ success: true, message: "Upgrade request approved successfully." });
   } catch (err) {
     console.error("Approve upgrade request error:", err);
     res.status(500).json({ success: false, error: err.message });
