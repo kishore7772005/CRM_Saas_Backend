@@ -71,7 +71,7 @@ export default {
     try {
       if (!APP_ID) return res.status(500).json({ success: false, message: "META_APP_ID not configured in .env" });
 
-      const redirectUri = `${process.env.FRONTEND_URL || "http://localhost:5173"}/integrations/facebook/callback`;
+      const redirectUri = `${process.env.FRONTEND_URL}/integrations/facebook/callback`;
       const scopes      = [
         "pages_show_list",
         "leads_retrieval",
@@ -109,7 +109,7 @@ export default {
         // Step 1 — exchange the one-time code for a long-lived token
         if (!code) return res.status(400).json({ success: false, message: "Authorization code is required" });
 
-        const redirectUri = `${process.env.FRONTEND_URL || "http://localhost:5173"}/integrations/facebook/callback`;
+        const redirectUri = `${process.env.FRONTEND_URL}/integrations/facebook/callback`;
 
         const tokenRes = await axios.get(`${GRAPH_API}/oauth/access_token`, {
           params: { client_id: APP_ID, client_secret: APP_SECRET, redirect_uri: redirectUri, code },
